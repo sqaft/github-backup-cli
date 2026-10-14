@@ -2,7 +2,7 @@
 
 `gh` ile oturum açılmış hesabın kişisel repolarını ve üyesi olduğu tüm organizasyonların repolarını (wiki ve LFS nesneleriyle) yerel diske ve/veya S3 uyumlu bir bucket'a yedekleyen, her çalıştırmada yalnızca değişenleri yeni snapshot olarak ekleyen bir Node.js/TypeScript CLI (`github-backup`). Amaç, GitHub hesabı veya repo kaybına karşı tüm git geçmişinin bağımsız, geri yüklenebilir bir kopyasını tutmak.
 
-**Planlama:** Devam ediyor
+**Planlama:** Tamamlandı
 
 ## Özellikler
 
