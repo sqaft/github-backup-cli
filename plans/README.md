@@ -48,7 +48,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 | 2 | Mirror, snapshot ve `local` hedefi | Tamamlandı | [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) |
 | 3 | `s3` hedefi | Tamamlandı | [faz-03-s3.md](faz-03-s3.md) |
 | 4 | Git LFS | Tamamlandı | [faz-04-lfs.md](faz-04-lfs.md) |
-| 5 | Dokümantasyon ve son kontrol | Devam ediyor | [faz-05-dokuman-ve-son-kontrol.md](faz-05-dokuman-ve-son-kontrol.md) |
+| 5 | Dokümantasyon ve son kontrol | Tamamlandı | [faz-05-dokuman-ve-son-kontrol.md](faz-05-dokuman-ve-son-kontrol.md) |
 
 ## Çalışma kuralları
 

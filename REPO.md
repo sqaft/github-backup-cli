@@ -18,4 +18,5 @@ GitHub repolarını (wiki ve LFS dahil) yerel diske ve S3 uyumlu depolamaya git 
 - Config şeması (`src/config/schema.ts`) değişirse: `config.example.json`, kök `README.md` config referansı, `plans/mimari.md` Yapılandırma bölümü.
 - Bayrak veya env değişkeni eklenirse: `src/cli.ts`, `src/config/load.ts`, kök `README.md`, `plans/mimari.md`.
 - Hedef düzeni veya manifest değişirse: `src/core/snapshot.ts`, `src/targets/*`, kök `README.md` geri yükleme bölümü, `plans/mimari.md`.
+- `--help` metinleri (`src/program.ts`) değişirse: kök `README.md` bayrak tablosu ve `test/unit/commands.test.ts` içindeki yardım testi.
 - Yeni kaynak/hedef eklenirse: `src/sources/index.ts` veya `src/targets/index.ts`, şema, `CONTRIBUTING.md`, README.
