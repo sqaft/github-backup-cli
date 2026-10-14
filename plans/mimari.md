@@ -9,7 +9,7 @@
   - `zod`: config şeması doğrulama.
   - `@aws-sdk/client-s3`, `@aws-sdk/lib-storage`: S3 işlemleri ve multipart yükleme (`Upload` sınıfı; part boyutu en az 5 MB, varsayılan `queueSize` 4 — kaynak: aws-sdk-js-v3 `lib/lib-storage/README.md`, 2026-10-14).
   - `tar`: LFS nesnelerinin tar'lanması (sistem `tar`'ına bağımlı kalmamak için).
-- Geliştirme: `typescript`, `vitest`, `@biomejs/biome`, `tsx` (geliştirmede doğrudan çalıştırma).
+- Geliştirme: `typescript`, `vitest`, `@biomejs/biome`, `tsx` (geliştirmede doğrudan çalıştırma), `@types/node` (en düşük desteklenen sürüm olan 22'ye göre).
 - Dış araçlar (kullanıcının makinesinde kurulu olmalı): `gh` (oturum açık), `git`, `git-lfs` (LFS açıksa).
 - Desteklenen OS: Linux ve macOS. Windows test edilmez.
 
@@ -17,8 +17,10 @@
 
 ```text
 src/
-  cli.ts                 # commander tanımı, giriş noktası (bin: github-backup)
+  cli.ts                 # giriş noktası (bin: github-backup); programı çalıştırıp çıkış kodunu verir
+  program.ts             # commander tanımı, bayraklar, hata → çıkış kodu eşlemesi
   commands/
+    context.ts           # CommandDeps (exec, env, stdout/stderr), config + logger hazırlığı
     list.ts
     backup.ts
   config/
@@ -44,6 +46,7 @@ src/
     log.ts               # stderr logger (normal/verbose/quiet)
     filter.ts            # glob eşleştirme
     time.ts              # snapshot zaman damgası
+    errors.ts            # ExitCode, CliError, ConfigError, PrerequisiteError
 test/
   unit/
   integration/           # geçici git repoları, local hedef, MinIO
@@ -54,7 +57,7 @@ test/
 - `Source` arayüzü:
   - `id`: kaynak türü (`github`). Hedef yollarında ve önbellekte klasör adı olur.
   - `checkPrerequisites()`: gerekli araç ve oturum kontrolü.
-  - `listRepos(): Promise<RepoInfo[]>`: `RepoInfo` = `{ owner, name, fullName, cloneUrl, wikiUrl?, hasWiki, isArchived, isFork, isEmpty }`.
+  - `listRepos(): Promise<{ repos: RepoInfo[]; failures: { owner, message }[] }>`: `RepoInfo` = `{ source, owner, name, fullName, cloneUrl, wikiUrl?, hasWiki, isArchived, isFork, isEmpty }`. Bir sahibin (ör. SSO'lu org) repoları listelenemezse hata fırlatılmaz, `failures`'a eklenir; çağıran uyarı verir ve çıkış kodu 1 olur.
   - `gitEnv(): Record<string,string>`: git alt süreçlerine verilecek kimlik doğrulama env'i.
 - `Target` arayüzü:
   - `name`, `type`, `keep`.
@@ -63,6 +66,8 @@ test/
   - `listSnapshots(repoKey): Promise<string[]>` (zaman damgaları)
   - `deleteSnapshot(repoKey, stamp)`
 - `repoKey` = `<source.id>/<owner>/<repo>` (wiki için `<source.id>/<owner>/<repo>.wiki`).
+- Kaynak türü → uygulama eşlemesi `sources/index.ts` içindeki `createSource` fonksiyonundadır; `core/discover.ts` her kaynak yapılandırması için ön koşulları kontrol eder, listeler ve o kaynağın filtrelerini uygular.
+- Dış komut çağıran modüller `Exec` fonksiyon tipini (`util/exec.ts`) bağımlılık olarak alır; testlerde sahte `exec` verilir. Komutlar `CommandDeps` ile `exec`, `env`, `stdout`, `stderr` alır.
 - Çekirdek kaynak ve hedef türünden bağımsızdır. Yeni kaynak/hedef: yeni modül + `index.ts` kaydı + zod şemasında yeni `type` dalı.
 
 ## Akış
@@ -71,7 +76,8 @@ test/
 
 1. Config yüklenir, kaynak ön koşulları kontrol edilir.
 2. Kaynaklardan repolar listelenir, filtreler uygulanır.
-3. Her repo için `fullName`, arşiv/fork/wiki/boş bilgisi tablo olarak stdout'a yazılır; sonda toplam sayı. `--json` ile JSON dizi.
+3. Her repo için `fullName`, arşiv/fork/wiki/boş bilgisi (`yes`/`-`) hizalı tablo olarak stdout'a yazılır; sonda toplam (`N repositories`). `--json` ile `RepoInfo[]`.
+4. Çıkış kodu: bir sahip listelenemediyse 1, ön koşul/config hatasında 2, aksi halde 0.
 
 ### `backup`
 
@@ -151,11 +157,11 @@ Config dosyası: varsayılan `~/.config/github-backup-cli/config.json` (`XDG_CON
       "name": "r2",
       "bucket": "my-backups",
       "prefix": "git",
-      "endpoint": "https://<account>.r2.cloudflarestorage.com",
+      "endpoint": "https://ACCOUNT_ID.r2.cloudflarestorage.com",
       "region": "auto",
       "forcePathStyle": false,
-      "accessKeyId": "…",
-      "secretAccessKey": "…",
+      "accessKeyId": "YOUR_ACCESS_KEY_ID",
+      "secretAccessKey": "YOUR_SECRET_ACCESS_KEY",
       "keep": 14
     }
   ]
@@ -164,6 +170,9 @@ Config dosyası: varsayılan `~/.config/github-backup-cli/config.json` (`XDG_CON
 
 - `sources` verilmezse varsayılan tek `github` kaynağıdır.
 - Hedef başına `keep` genel `keep`'i ezer.
+- Şema katı (`strict`): bilinmeyen alan hata verir; hedef adları benzersiz olmalıdır. Hata mesajı alan yolunu içerir (ör. `targets.0.bucket`).
+- Bayrak veya env ile verilen `include`/`exclude`/`archived`/`forks` her `github` kaynağının değerini ezer.
+- S3 anahtarı için tek istisna: config'te yoksa `GHBACKUP_S3_ACCESS_KEY_ID`/`GHBACKUP_S3_SECRET_ACCESS_KEY` kullanılır (config önce gelir).
 - `~` ve env genişletmesi `cacheDir` ve `path` alanlarında yapılır.
 - Config dosyası başkaları tarafından okunabiliyorsa (`mode & 0o077`) ve içinde S3 anahtarı varsa uyarı verilir.
 
@@ -173,7 +182,9 @@ Bayraklar (her iki komutta ortak olanlar dahil):
 
 - Ortak: `--config <path>`, `--include <glob>` (tekrarlanabilir), `--exclude <glob>` (tekrarlanabilir), `--no-archived`, `--no-forks`, `--json`, `--verbose`, `--quiet`.
 - `backup`: `--cache-dir <dir>`, `--concurrency <n>`, `--keep <n>`, `--no-wiki`, `--no-lfs`, `--target <name>` (tekrarlanabilir; yalnızca seçilen hedefler), `--local <path>` (config'e geçici `local` hedefi ekler, hızlı kullanım için).
-- Glob'lar `owner/repo` üzerinde, büyük/küçük harf duyarsız eşleşir. `exclude` `include`'dan sonra uygulanır.
+- Glob'lar `owner/repo` üzerinde, büyük/küçük harf duyarsız eşleşir: `*` ve `?` `/` karakterini geçmez, `**` geçer; `/` içermeyen desen hiçbir repoyla eşleşmez. Boş `include` her repoyu kabul eder. `exclude` `include`'dan sonra uygulanır.
+- `--no-archived`, `--no-forks`, `--no-wiki`, `--no-lfs` yalnızca komut satırında yazıldıysa ayarı ezer (commander'ın varsayılan `true` değeri env/dosya ayarlarını bozmaz).
+- `--local` eklediği `local` hedefi diğer hedeflere eklenir; yalnızca onu çalıştırmak için `--target local` da verilir. `--verbose` ile `--quiet` birlikte kullanılamaz (çıkış 2).
 
 ## Güvenlik
 
@@ -203,7 +214,7 @@ Bayraklar (her iki komutta ortak olanlar dahil):
 
 ## Loglama
 
-- Log stderr'e satır satır: `[HH:MM:SS] <seviye> <repoKey>: <mesaj>`. `--verbose` git komutlarını da yazar; `--quiet` yalnızca hata ve özet.
+- Log stderr'e satır satır: `[HH:MM:SS] <SEVİYE> <repoKey>: <mesaj>`. `--verbose` git komutlarını da yazar; `--quiet` yalnızca hata ve özet (uyarılar dahil değil). Kayıtlı gizli değerler (S3 anahtarları) `***` olarak maskelenir.
 - Log dosyası tutulmaz; cron çıktıyı yönlendirir.
 
 ## Maliyet

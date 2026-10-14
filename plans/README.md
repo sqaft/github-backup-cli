@@ -44,7 +44,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 
 | Faz | Başlık | Durum | Dosya |
 | --- | --- | --- | --- |
-| 1 | İskelet, config ve `list` | Bekliyor | [faz-01-iskelet-ve-list.md](faz-01-iskelet-ve-list.md) |
+| 1 | İskelet, config ve `list` | Tamamlandı | [faz-01-iskelet-ve-list.md](faz-01-iskelet-ve-list.md) |
 | 2 | Mirror, snapshot ve `local` hedefi | Bekliyor | [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) |
 | 3 | `s3` hedefi | Bekliyor | [faz-03-s3.md](faz-03-s3.md) |
 | 4 | Git LFS | Bekliyor | [faz-04-lfs.md](faz-04-lfs.md) |

@@ -1,0 +1,31 @@
+{
+  "cacheDir": "~/.cache/github-backup-cli",
+  "concurrency": 4,
+  "wiki": true,
+  "lfs": true,
+  "keep": 7,
+  "sources": [
+    {
+      "type": "github",
+      "include": ["*/*"],
+      "exclude": [],
+      "archived": true,
+      "forks": true
+    }
+  ],
+  "targets": [
+    { "type": "local", "name": "disk", "path": "/backups/git" },
+    {
+      "type": "s3",
+      "name": "r2",
+      "bucket": "my-backups",
+      "prefix": "git",
+      "endpoint": "https://ACCOUNT_ID.r2.cloudflarestorage.com",
+      "region": "auto",
+      "forcePathStyle": false,
+      "accessKeyId": "YOUR_ACCESS_KEY_ID",
+      "secretAccessKey": "YOUR_SECRET_ACCESS_KEY",
+      "keep": 14
+    }
+  ]
+}

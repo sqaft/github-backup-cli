@@ -1,6 +1,6 @@
 # Faz 1 — İskelet, config ve `list`
 
-**Durum:** Bekliyor
+**Durum:** Tamamlandı
 
 ## Amaç
 
@@ -31,17 +31,17 @@
 
 ## Görevler
 
-- [ ] Doğrulama: `gh repo list --json` alanlarının (`nameWithOwner`, `isArchived`, `isFork`, `hasWikiEnabled`, `isEmpty`, `url`) mevcut `gh` sürümünde olduğunu `gh repo list --json` (alan listesi yazdırır) veya resmi kılavuzdan doğrula; farklıysa mimari.md'yi güncelle.
-- [ ] İskelet ve araç yapılandırması; `npm run lint/typecheck/test/build` boş projede geçer.
-- [ ] `util/exec.ts`: komut, argüman dizisi, env, timeout; stdout/stderr yakalama; sıfır olmayan çıkışta komut adını ve stderr'i içeren hata.
-- [ ] `util/log.ts`: seviye (`quiet`/`normal`/`verbose`), stderr'e zaman damgalı satırlar, gizli değer maskeleme.
-- [ ] Config şeması, yükleme ve birleştirme + birim testleri (öncelik, env boolean ayrıştırma, `~` genişletme, hatalı alan mesajı).
-- [ ] `util/filter.ts` + birim testleri.
-- [ ] `sources/github.ts` + sahte `exec` ile birim testleri (sayfalı org çıktısı, boş org, org hatası, tekilleştirme).
-- [ ] `commands/list.ts` (tablo ve `--json`) + birim testi.
-- [ ] `commands/backup.ts` iskeleti ve tüm bayrakların tanımı.
-- [ ] `config.example.json`.
-- [ ] `ci.yml`.
+- [x] Doğrulama: `gh repo list --json` alanlarının (`nameWithOwner`, `isArchived`, `isFork`, `hasWikiEnabled`, `isEmpty`, `url`) mevcut `gh` sürümünde olduğunu `gh repo list --json` (alan listesi yazdırır) veya resmi kılavuzdan doğrula; farklıysa mimari.md'yi güncelle.
+- [x] İskelet ve araç yapılandırması; `npm run lint/typecheck/test/build` boş projede geçer.
+- [x] `util/exec.ts`: komut, argüman dizisi, env, timeout; stdout/stderr yakalama; sıfır olmayan çıkışta komut adını ve stderr'i içeren hata.
+- [x] `util/log.ts`: seviye (`quiet`/`normal`/`verbose`), stderr'e zaman damgalı satırlar, gizli değer maskeleme.
+- [x] Config şeması, yükleme ve birleştirme + birim testleri (öncelik, env boolean ayrıştırma, `~` genişletme, hatalı alan mesajı).
+- [x] `util/filter.ts` + birim testleri.
+- [x] `sources/github.ts` + sahte `exec` ile birim testleri (sayfalı org çıktısı, boş org, org hatası, tekilleştirme).
+- [x] `commands/list.ts` (tablo ve `--json`) + birim testi.
+- [x] `commands/backup.ts` iskeleti ve tüm bayrakların tanımı.
+- [x] `config.example.json`.
+- [x] `ci.yml`.
 
 ## 👤 Kullanıcı aksiyonları
 
@@ -61,4 +61,12 @@
 
 ## Devam notları
 
-_Henüz yok._
+Kod tarafı bitti; bu ortamda doğrulanabilen tüm kabul kriterleri sağlandı (lint, typecheck, test, build temiz; `gh` yokken ve oturum kapalıyken `list` çıkış 2; `backup` "not implemented" ile çıkış 2; `list --json --exclude 'org/*'` birim testinde filtrelenmiş JSON üretir; config önceliği testli).
+
+- Açık kalan: gerçek `gh` oturumuyla `list` denemesi (kullanıcı aksiyonu 💻, bulutta `gh` oturumu yok). `node dist/cli.js list` kişisel repoları ve tüm org'ları göstermeli; bir org SSO yetkisi istiyorsa uyarı + çıkış 1 beklenir.
+- Faz 2 için hazır olanlar: `Exec` tipi (`util/exec.ts`, git komutları için de kullanılacak; `ExecError.code` `ENOENT`/`ETIMEDOUT` dönebilir), `Logger` (`debug` yalnızca `--verbose`), `CommandDeps` (`commands/context.ts`), `prepare()` (config + logger), `discoverRepos()` (`sources` haritası `gitEnv()` için), `ConfigError`/`PrerequisiteError`/`CliError`/`ExitCode` (`util/errors.ts`; `program.ts` bunları çıkış koduna çevirir).
+- `commands/backup.ts` yalnızca stub; `BackupOptions` şimdilik `CommonOptions` ile aynı, Faz 2'de `ConfigFlags`'in (cacheDir, concurrency, keep, wiki, lfs, target, local) zaten kapsadığı alanlar kullanılır. `git` varlığının kontrolü (`git --version`) `backup`'ın ön koşul adımına Faz 2'de eklenecek (`list` yalnızca `gh` ister).
+- Config'te `keep` çözümü (hedef `keep` > genel `keep`) henüz bir yardımcıya bağlanmadı; hedef şemasında `keep` isteğe bağlı kalır. Faz 2'de tek fonksiyonla çözülmeli.
+- Araç sürümleri: TypeScript 7, Vitest 5, Biome 2.5, commander 15, zod 4. Hepsi sorunsuz çalıştı. Biome'da `rules.preset` kullanılır (`recommended` alanı kaldırılıyor).
+- CI yalnızca `.github/workflows/ci.yml` ile Node 22/24 matrisinde çalışır; MinIO servisi Faz 3'te eklenecek.
+- Test `config.example.json`'un şemaya uyduğunu doğrular; şema değişirse örnek dosya, mimari.md ve README birlikte güncellenmeli (`REPO.md`).

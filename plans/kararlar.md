@@ -33,3 +33,5 @@ Projenin güncel kararları. Bir karar değişirse satırı güncellenir ve tari
 | K-027 | 2026-10-14 | Eşzamanlı çalıştırmayı önlemek için önbellekte PID'li kilit dosyası; ölü PID'nin kilidi devralınır. | Üst üste binen cron çalıştırmaları aynı mirror'ı bozmasın. |
 | K-028 | 2026-10-14 | Mirror yalnızca `refs/heads/*` ve `refs/tags/*` alır; `refs/pull/*` alınmaz. | Bundle küçük kalır, geri yüklenen repo temiz olur. |
 | K-029 | 2026-10-14 | Desteklenen OS: Linux ve macOS. | Hedef kullanım cron/launchd; Windows test edilmez. |
+| K-030 | 2026-10-14 | Glob eşleşmesi `owner/repo` üzerindedir: `*` ve `?` `/` geçmez, `**` geçer; büyük/küçük harf duyarsız; boş `include` her şeyi kabul eder. | Beklenen `acme/*` davranışı; `*/*` her repoyu yakalar; ayrıntı mimari.md'de. |
+| K-031 | 2026-10-14 | Config şeması katıdır (bilinmeyen alan hata verir) ve hedef adları benzersizdir. S3 anahtarı config'te yoksa `GHBACKUP_S3_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` env'i kullanılır. | Yazım hatası sessizce yok sayılmasın; `--target` adla seçtiği için ad çakışmasın; K-010'un tek istisnası mimari.md'de belirtilen S3 anahtarı sırası. |
