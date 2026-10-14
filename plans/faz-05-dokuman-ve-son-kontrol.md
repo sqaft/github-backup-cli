@@ -8,7 +8,7 @@ Kullanıcı README'yi okuyarak aracı kurup, yapılandırıp, cron ile zamanlay�
 
 ## Ön koşullar
 
-- Faz 4 tamamlandı.
+- Faz 4 tamamlandı. Geri yükleme (LFS dahil) adımları [faz-04-lfs.md](faz-04-lfs.md) **Devam notları**'nda.
 
 ## Kapsam
 

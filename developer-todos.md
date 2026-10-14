@@ -28,7 +28,7 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 4 — Git LFS
 
-- [ ] 💻 LFS kullanan bir repo varsa yedekleyip README'deki adımlarla geri yükle.
+- [ ] 💻 LFS kullanan gerçek bir GitHub reposunu yedekle (`node dist/cli.js backup --local ~/git-backup-test --include '<owner>/<repo>'`), `<stamp>.lfs.tar` oluştuğunu gör ve [faz-04-lfs.md](plans/faz-04-lfs.md) **Devam notları**'ndaki adımlarla bir LFS dosyasını geri yükleyip sha256'sını orijinalle karşılaştır: gerçek `gh` oturumu ve gerçek LFS sunucusu gerekir, bulutta yok.
 
 ### Faz 5 — Dokümantasyon ve son kontrol
 
