@@ -12,12 +12,14 @@
 - **S3 yedeği:** her repo git bundle olarak S3 uyumlu bucket'a (AWS S3, Cloudflare R2, Backblaze B2, MinIO vb.) yüklenir; ref'ler değişmediyse yükleme atlanır; repo başına son N snapshot tutulur. (Faz TBD)
 
 - **Genişletilebilir yapı:** kaynaklar (git servisleri) ve hedefler (depolama) eklenti arayüzleriyle ayrılır; ilk sürümde `github`, `local`, `s3`. (Faz TBD)
+- **Git LFS:** LFS nesneleri snapshot başına tar olarak yedeklenir; `git-lfs` yoksa hata, `--no-lfs` ile atlanır. (Faz TBD)
 
 ## Kapsam dışı
 
 - GitHub dışındaki git servisleri ve S3/yerel dışındaki depolamalar: ilk sürümde yok, mimari bunlara hazır.
 
 - Issue, PR, yorum, release ve asset gibi GitHub metadata'sı: ilk sürüm yalnızca git verisi + wiki.
+- GitHub Enterprise: yalnızca github.com.
 - Dahili zamanlayıcı/daemon: zamanlama kullanıcının cron/launchd'si ile yapılır.
 - GitHub ile birebir eşitleme (silinen repo/branch'i yedekten silme): yedeğin amacı kaybı önlemek.
 
@@ -42,10 +44,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 
 ## Açık noktalar
 
-- `local` hedefinin biçimi (bundle snapshot mı, düz mirror mı) ve mirror önbelleğinin yeri.
-- Config dosyası biçimi ve yeri, env adları, bayraklar.
-- Filtreler: arşivlenmiş repolar, fork'lar, include/exclude desenleri.
-- Git kimlik doğrulaması (private repo klonlama için `gh` token'ının git'e verilmesi), Git LFS.
+- Config alanlarının ve bayrakların tam listesi.
 - Paralellik, hata yönetimi, loglama, çıkış kodları.
 - Node sürümü, paket yöneticisi, dağıtım (npm yayını mı, repodan çalıştırma mı).
 - Test, lint, format, typecheck ve CI.
