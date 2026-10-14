@@ -1,6 +1,6 @@
 # Faz 1 — İskelet, config ve `list`
 
-**Durum:** Bekliyor
+**Durum:** Devam ediyor
 
 ## Amaç
 
