@@ -340,3 +340,17 @@ describe("loadConfig S3 credentials and file permissions", () => {
     if (warns) expect(warnings[0]).toContain("chmod 600");
   });
 });
+
+describe("config.example.json", () => {
+  it("is a valid configuration", () => {
+    const example = path.resolve(import.meta.dirname, "../../config.example.json");
+    const { config } = loadConfig({
+      flags: { config: example },
+      env: {},
+      homeDir: home,
+      cwd: home,
+    });
+    expect(config.targets.map((t) => t.name)).toEqual(["disk", "r2"]);
+    expect(config.sources[0]).toMatchObject({ type: "github" });
+  });
+});
