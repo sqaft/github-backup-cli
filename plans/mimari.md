@@ -16,6 +16,9 @@
 ## Dizin yapısı
 
 ```text
+README.md                # kurulum, config referansı, zamanlama, geri yükleme (İngilizce)
+CONTRIBUTING.md          # geliştirme kuralları, yeni kaynak/hedef ekleme rehberi
+config.example.json      # şemadan geçen örnek config
 src/
   cli.ts                 # giriş noktası (bin: github-backup); programı çalıştırıp çıkış kodunu verir
   program.ts             # commander tanımı, bayraklar, hata → çıkış kodu eşlemesi

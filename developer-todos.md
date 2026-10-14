@@ -32,4 +32,4 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 5 — Dokümantasyon ve son kontrol
 
-- [ ] 💻 README'deki cron örneğiyle zamanlanmış yedeği kur ve ertesi gün özeti kontrol et.
+- [ ] 💻 README'deki "Scheduling" bölümündeki cron (macOS için launchd) örneğiyle zamanlanmış yedeği kur ve ertesi gün özeti ile çıkış kodunu kontrol et: gerçek makine ve `gh` oturumu gerekir, bulutta yok.

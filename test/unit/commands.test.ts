@@ -288,3 +288,30 @@ describe("renderTable", () => {
     expect(renderTable([])).toBe("REPO  ARCHIVED  FORK  WIKI  EMPTY\n\n0 repositories");
   });
 });
+
+describe("backup --help", () => {
+  it("documents every flag the README lists", async () => {
+    const { run, out } = setup();
+    expect(await run(["backup", "--help"])).toBe(0);
+    const text = out.join("");
+    for (const flag of [
+      "--config",
+      "--include",
+      "--exclude",
+      "--no-archived",
+      "--no-forks",
+      "--json",
+      "--verbose",
+      "--quiet",
+      "--cache-dir",
+      "--concurrency",
+      "--keep",
+      "--no-wiki",
+      "--no-lfs",
+      "--target",
+      "--local",
+    ]) {
+      expect(text).toContain(flag);
+    }
+  });
+});

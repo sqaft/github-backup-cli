@@ -1,6 +1,6 @@
 # Faz 5 — Dokümantasyon ve son kontrol
 
-**Durum:** Bekliyor
+**Durum:** Tamamlandı
 
 ## Amaç
 
@@ -23,10 +23,10 @@ Kullanıcı README'yi okuyarak aracı kurup, yapılandırıp, cron ile zamanlay�
 
 ## Görevler
 
-- [ ] README.
-- [ ] `CONTRIBUTING.md`.
-- [ ] `--help` çıktılarını gözden geçir.
-- [ ] Planı ve `REPO.md`'yi kodla karşılaştır; tutarsızlıkları düzelt.
+- [x] README.
+- [x] `CONTRIBUTING.md`.
+- [x] `--help` çıktılarını gözden geçir.
+- [x] Planı ve `REPO.md`'yi kodla karşılaştır; tutarsızlıkları düzelt.
 
 ## 👤 Kullanıcı aksiyonları
 
@@ -44,4 +44,10 @@ Kullanıcı README'yi okuyarak aracı kurup, yapılandırıp, cron ile zamanlay�
 
 ## Devam notları
 
-_Henüz yok._
+Faz tamamlandı; kalan tek iş yukarıdaki 💻 maddesi (cron örneğiyle zamanlanmış yedeği gerçek makinede kurmak) ve Faz 1–4'ten kalan 💻 elle doğrulamalar (`developer-todos.md`).
+
+Yapılan: kök `README.md` baştan yazıldı (kurulum, hızlı başlangıç, bayrak ve çıkış kodu tabloları, config ve env referansı, S3 sağlayıcı tablosu, snapshot düzeni ve manifest, cron ve launchd örnekleri, geri yükleme, sınırlamalar); `CONTRIBUTING.md` eklendi (yeni kaynak/hedef rehberi); `src/program.ts` yardım metinlerine varsayılanlar eklendi ve `test/unit/commands.test.ts`'e yardım bayrağı testi konuldu; `mimari.md` dizin yapısına belgeler, `REPO.md`'ye `--help` ↔ README bağı eklendi.
+
+Doğrulananlar: README'deki config örneği ve `config.example.json` `configSchema`'dan geçer; README'deki `GHBACKUP_*` değişkenleri `load.ts`'dekilerle birebir aynı; bayraklar `--help` çıktısıyla eşleşir; geri yükleme adımları `test/integration/lfs.test.ts` (klon, tar'ı `.git`'e açma, `git lfs checkout`) ve `local-target.test.ts` ile aynıdır. lint, typecheck, test, build temiz. S3 testleri bu ortamda sunucu olmadığı için atlandı (CI'da çalışır).
+
+Doğrulanamayanlar: cron ve launchd örnekleri gerçek bir makinede denenmedi (README'deki `aws s3 cp` geri yükleme komutu ve B2/R2 endpoint biçimleri de gerçek servisle denenmedi).
