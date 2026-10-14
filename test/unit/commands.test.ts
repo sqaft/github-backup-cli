@@ -186,10 +186,10 @@ describe("list prerequisites (real github source, fake exec)", () => {
 });
 
 describe("backup", () => {
-  it("is not implemented yet and exits 2", async () => {
+  it("exits 2 when no target is configured", async () => {
     const { run, err } = setup();
     expect(await run(["backup"])).toBe(2);
-    expect(err.join("\n")).toContain("not implemented");
+    expect(err.join("\n")).toContain("no targets configured; use --local <path>");
   });
 
   it("accepts every documented flag", async () => {
@@ -219,9 +219,9 @@ describe("backup", () => {
       "--local",
       "/tmp/out",
     ]);
-    // Flags parse; the command itself is the stub.
+    // Every flag parses; the missing config file stops the command before any work.
     expect(code).toBe(2);
-    expect(err.join("\n")).toContain("not implemented");
+    expect(err.join("\n")).toContain("config file not found");
   });
 
   it("rejects unknown flags with exit 2", async () => {

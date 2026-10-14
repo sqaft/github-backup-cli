@@ -28,8 +28,10 @@ src/
     load.ts              # dosya + env + bayrak birleştirme
   core/
     discover.ts          # kaynaklardan repo listesi + filtreler
+    git.ts               # Exec üzerinden git çalıştırıcı (kaynağın gitEnv'i, sinyal, verbose log)
     mirror.ts            # bare mirror clone/fetch, wiki, LFS fetch
     snapshot.ts          # ref özeti, bundle ve lfs.tar üretimi, manifest
+    retention.ts         # keep çözümü, süresi dolan snapshot seçimi, saklama uygulaması
     run.ts               # paralel iş akışı, yeniden deneme, özet
     lock.ts              # eşzamanlı çalıştırma kilidi
   sources/
@@ -37,7 +39,7 @@ src/
     github.ts            # gh tabanlı GitHub kaynağı
     index.ts             # tür → uygulama kaydı
   targets/
-    types.ts             # Target arayüzü
+    types.ts             # Target arayüzü, Manifest, SnapshotFiles
     local.ts
     s3.ts
     index.ts
@@ -45,7 +47,9 @@ src/
     exec.ts              # child_process sarmalayıcısı (timeout, stderr yakalama)
     log.ts               # stderr logger (normal/verbose/quiet)
     filter.ts            # glob eşleştirme
-    time.ts              # snapshot zaman damgası
+    time.ts              # snapshot zaman damgası, sleep
+    async.ts             # withRetry, runPool
+    tool.ts              # package.json'dan araç adı ve sürümü
     errors.ts            # ExitCode, CliError, ConfigError, PrerequisiteError
 test/
   unit/
@@ -60,11 +64,12 @@ test/
   - `listRepos(): Promise<{ repos: RepoInfo[]; failures: { owner, message }[] }>`: `RepoInfo` = `{ source, owner, name, fullName, cloneUrl, wikiUrl?, hasWiki, isArchived, isFork, isEmpty }`. Bir sahibin (ör. SSO'lu org) repoları listelenemezse hata fırlatılmaz, `failures`'a eklenir; çağıran uyarı verir ve çıkış kodu 1 olur.
   - `gitEnv(): Record<string,string>`: git alt süreçlerine verilecek kimlik doğrulama env'i.
 - `Target` arayüzü:
-  - `name`, `type`, `keep`.
-  - `latestManifest(repoKey): Promise<Manifest | null>`
-  - `putSnapshot(repoKey, stamp, files: { bundle, manifest, lfsTar? })`
-  - `listSnapshots(repoKey): Promise<string[]>` (zaman damgaları)
-  - `deleteSnapshot(repoKey, stamp)`
+  - `name`, `type`, `keep` (çözülmüş değer; `createTarget(config, { keep })` ile verilir).
+  - `latestManifest(repoKey): Promise<Manifest | null>`: manifest'i olan en yeni snapshot.
+  - `putSnapshot(repoKey, stamp, files: { bundle, manifest, lfsTar? })`: `bundle` ve `lfsTar` yerel dosya yoludur, `manifest` nesnedir; hedef en son manifest'i yazar.
+  - `listSnapshots(repoKey): Promise<string[]>`: manifest'i olan (tamamlanmış) snapshot'ların zaman damgaları, eskiden yeniye.
+  - `deleteSnapshot(repoKey, stamp)`: bundle, lfs.tar ve manifest silinir (manifest ilk).
+  - `cleanupIncomplete(repoKey)`: manifest'i olmayan yarım dosyaları ve `.partial` dosyalarını siler.
 - `repoKey` = `<source.id>/<owner>/<repo>` (wiki için `<source.id>/<owner>/<repo>.wiki`).
 - Kaynak türü → uygulama eşlemesi `sources/index.ts` içindeki `createSource` fonksiyonundadır; `core/discover.ts` her kaynak yapılandırması için ön koşulları kontrol eder, listeler ve o kaynağın filtrelerini uygular.
 - Dış komut çağıran modüller `Exec` fonksiyon tipini (`util/exec.ts`) bağımlılık olarak alır; testlerde sahte `exec` verilir. Komutlar `CommandDeps` ile `exec`, `env`, `stdout`, `stderr` alır.
@@ -83,22 +88,22 @@ test/
 
 1. Config yüklenir. En az bir hedef yoksa hata (çıkış 2).
 2. Ön koşullar: `git`, `gh` kurulu ve `gh auth status` başarılı; LFS açıksa `git lfs version` başarılı. Biri eksikse kurulum/oturum talimatıyla hata (çıkış 2). `git-lfs` yoksa mesaj `--no-lfs` seçeneğini de söyler.
-3. Önbellek dizininde kilit alınır (`<cacheDir>/.lock`, içinde PID). Kilit canlı bir süreçteyse çıkış 3. Ölü PID'ye ait kilit devralınır.
+3. Önbellek dizininde kilit alınır (`<cacheDir>/.lock`, içinde PID; tam içerikli dosya `link` ile atomik oluşturulur). Kilit canlı bir süreçteyse çıkış 3. Ölü PID'ye ait kilit devralınır. Kilit alındıktan sonra önceki bir çalıştırmadan kalan `<cacheDir>/tmp` silinir.
 4. Repolar listelenir ve filtrelenir.
 5. Her repo (ve wiki'si) `concurrency` sınırıyla paralel işlenir:
-   1. **Mirror:** `<cacheDir>/<source>/<owner>/<repo>.git` yoksa `git init --bare`, `git remote add origin <url>` ve fetch refspec'leri `+refs/heads/*:refs/heads/*` ile `+refs/tags/*:refs/tags/*` olarak ayarlanır (`refs/pull/*` alınmaz). Sonra her çalıştırmada `git fetch origin` (prune yok). `isEmpty` olan repo atlanır (`skipped: empty`).
+   1. **Mirror:** `<cacheDir>/<source>/<owner>/<repo>.git` yoksa `git init --bare`, `git remote add origin <url>` ve fetch refspec'leri `+refs/heads/*:refs/heads/*` ile `+refs/tags/*:refs/tags/*` olarak ayarlanır (`refs/pull/*` alınmaz). Sonra her çalıştırmada `remote.origin.url` güncellenir ve `git fetch --no-tags --no-prune origin` çalışır (tag'ler refspec'ten gelir). Ardından `git ls-remote --symref origin HEAD` ile mirror'ın `HEAD`'i uzağın varsayılan branch'ine ayarlanır (bundle `git clone` ile açıldığında checkout olsun diye; başarısız olursa sessizce geçilir). `isEmpty` olan repo atlanır (`skipped: empty`); fetch sonrası hiç ref yoksa da `skipped: empty`. İlk fetch başarısız olursa yeni oluşturulan boş mirror dizini silinir.
    2. **LFS:** LFS açıksa `git lfs fetch --all origin`. Repoda LFS nesnesi yoksa adım no-op'tur.
-   3. **Ref özeti:** `git for-each-ref --format='%(objectname) %(refname)'` çıktısının sha256'sı.
+   3. **Ref özeti:** `git for-each-ref --format='%(objectname) %(refname)'` çıktısı ref adına göre sıralanır; satırların (`<sha> <ref>\n`) sha256'sı `refsHash` olur.
    4. **Hedef karşılaştırma:** her hedef için `latestManifest`; `refsHash` aynıysa o hedef için `unchanged`.
-   5. **Snapshot:** en az bir hedef değişiklik istiyorsa `<cacheDir>/tmp/` altında `git bundle create <file> --all` ve LFS nesnesi varsa `lfs/objects` klasörünün tar'ı oluşturulur.
+   5. **Snapshot:** en az bir hedef değişiklik istiyorsa `<cacheDir>/tmp/unit-*/` altında `git bundle create <file> --all` ve LFS nesnesi varsa `lfs/objects` klasörünün tar'ı oluşturulur. Zaman damgası bu adımda alınır ve tüm hedeflere aynıdır.
    6. **Yükleme:** değişiklik isteyen her hedefe `putSnapshot`. Sıra: önce `.bundle` ve `.lfs.tar`, en son `.json` manifest (manifest, snapshot'ın tamamlandığının işaretidir).
-   7. **Saklama:** hedefte manifest'i olan snapshot'lar zamana göre sıralanır, `keep`'ten eskiler (bundle, lfs.tar, json) silinir. Manifest'i olmayan yarım kalmış dosyalar da silinir.
+   7. **Saklama:** yeni snapshot yazılan her hedefte `applyRetention`: manifest'i olan snapshot'lar zamana göre sıralanır, `keep`'ten eskiler (bundle, lfs.tar, json) silinir, ardından `cleanupIncomplete` manifest'i olmayan yarım dosyaları siler. Bir hedefin yazma veya saklama adımı hata verirse o hedef `failed` olur, diğer hedefler etkilenmez.
    8. Geçici dosyalar silinir.
-6. Her adım hata alırsa 2 kez yeniden denenir (1 sn, 5 sn bekleme). Yine başarısızsa repo `failed` olur, diğerleri devam eder.
-7. Wiki: `hasWiki` true ise `<repo>.wiki.git` aynı adımlardan geçer. Wiki klonu "repository not found" ile başarısız olursa (wiki açık ama sayfa yok) `skipped: no wiki`, hata sayılmaz.
-8. Sonda özet stderr'e: başarılı / değişmedi / atlanan / başarısız sayıları ve başarısızların listesi. `--json` ile özet JSON olarak stdout'a.
+6. Her adım (mirror, hedef sorgusu, bundle, yükleme, saklama) hata alırsa 2 kez yeniden denenir (1 sn, 5 sn bekleme; `withRetry`). Yine başarısızsa o birim `failed` olur, diğerleri devam eder.
+7. Wiki: `wiki` açıkken `hasWiki` true ise `<repo>.wiki.git` ayrı bir birim olarak aynı adımlardan geçer (repoKey `<source>/<owner>/<repo>.wiki`, manifest `fullName` değeri `<owner>/<repo>.wiki`). Wiki fetch'i "repository not found" ile başarısız olursa (wiki açık ama sayfa yok) `skipped: no wiki`, hata sayılmaz; aynı hata ana repoda gerçek hatadır. Özet birim (repo veya wiki) başına sayar.
+8. Sonda özet stderr'e: başarılı / değişmedi / atlanan / başarısız sayıları ve başarısızların listesi (listelenemeyen sahipler dahil). `--json` ile stdout'a `{ summary: { ok, unchanged, skipped, failed, interrupted }, failures: [{ repo, error, targets }], listFailures, results }` yazılır.
 9. Çıkış kodu: `0` hepsi başarılı veya atlandı/değişmedi; `1` en az bir repo veya hedef başarısız; `2` config/ön koşul hatası; `3` başka bir çalıştırma sürüyor; `130` SIGINT.
-10. SIGINT/SIGTERM: devam eden alt süreçler sonlandırılır, geçici dosyalar ve kilit silinir.
+10. SIGINT/SIGTERM: `AbortSignal` ile devam eden alt süreçler sonlandırılır, yeni birim başlatılmaz, geçici dosyalar ve kilit silinir, çıkış 130. İkinci sinyal varsayılan davranışla süreci hemen öldürür.
 
 ## Kaynak: `github`
 
@@ -169,7 +174,7 @@ Config dosyası: varsayılan `~/.config/github-backup-cli/config.json` (`XDG_CON
 ```
 
 - `sources` verilmezse varsayılan tek `github` kaynağıdır.
-- Hedef başına `keep` genel `keep`'i ezer.
+- Hedef başına `keep` genel `keep`'i ezer; `--keep`, `GHBACKUP_KEEP` ve dosyadaki `keep` genel değeri belirler (`resolveKeep`).
 - Şema katı (`strict`): bilinmeyen alan hata verir; hedef adları benzersiz olmalıdır. Hata mesajı alan yolunu içerir (ör. `targets.0.bucket`).
 - Bayrak veya env ile verilen `include`/`exclude`/`archived`/`forks` her `github` kaynağının değerini ezer.
 - S3 anahtarı için tek istisna: config'te yoksa `GHBACKUP_S3_ACCESS_KEY_ID`/`GHBACKUP_S3_SECRET_ACCESS_KEY` kullanılır (config önce gelir).

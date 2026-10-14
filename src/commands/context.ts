@@ -16,6 +16,12 @@ export interface CommandDeps {
   homeDir?: string;
   cwd?: string;
   createSource?: (config: SourceConfig, deps: { exec: Exec }) => Source;
+  /** Aborts a running backup, like SIGINT does. */
+  signal?: AbortSignal;
+  /** Clock and waiting, replaced in tests. */
+  now?: () => Date;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  retryDelaysMs?: readonly number[];
 }
 
 export interface CommonOptions extends ConfigFlags {

@@ -49,4 +49,4 @@ LFS kullanan repoların LFS nesneleri de yedeklenir: her yeni snapshot'ın yanı
 
 ## Devam notları
 
-_Henüz yok._
+_Henüz başlanmadı._ Faz 2'den devralınanlar için [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) **Devam notları**'na bak: LFS adımının `core/run.ts` içinde takılacağı yer, `lfsTar`/`lfsTarBytes` için hazır alanlar ve ön koşulun `commands/backup.ts`'teki yeri.

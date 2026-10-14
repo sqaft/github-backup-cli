@@ -4,6 +4,8 @@ export interface ExecOptions {
   env?: Record<string, string>;
   cwd?: string;
   timeoutMs?: number;
+  /** Aborting kills the child process and rejects with code `ABORT_ERR`. */
+  signal?: AbortSignal;
 }
 
 export interface ExecResult {
@@ -18,7 +20,7 @@ export class ExecError extends Error {
   constructor(
     message: string,
     readonly cmd: string,
-    /** Exit code, or a string such as `ENOENT` / `ETIMEDOUT` when no exit code exists. */
+    /** Exit code, or a string such as `ENOENT` / `ETIMEDOUT` / `ABORT_ERR` when no exit code exists. */
     readonly code: number | string | null,
     readonly stderr: string,
   ) {
@@ -41,6 +43,7 @@ export const exec: Exec = (cmd, args, opts = {}) =>
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env },
+      signal: opts.signal,
       stdio: ["ignore", "pipe", "pipe"],
     });
     const stdout: Buffer[] = [];
