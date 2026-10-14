@@ -119,3 +119,40 @@ export function fakeSource(repos: RepoInfo[] = [], env: Record<string, string> =
     gitEnv: () => env,
   };
 }
+
+/** True when `git-lfs` is installed, so LFS tests can be skipped on machines without it. */
+export function hasGitLfs(): boolean {
+  try {
+    execFileSync("git", ["lfs", "version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Turns a test remote into an LFS repository whose LFS objects live in a local bare repository
+ * (git-lfs' built-in standalone file transfer, so no LFS server is needed). Returns the git
+ * environment a mirror needs to fetch those objects.
+ */
+export function enableLfs(
+  remote: TestRemote,
+  storeDir: string,
+  pattern = "*.bin",
+): Record<string, string> {
+  const config = {
+    "lfs.url": `file://${storeDir}`,
+    "lfs.standalonetransferagent": "lfs-standalone-file",
+  };
+  remote.git(["init", "--bare", storeDir], path.dirname(storeDir));
+  remote.git(["lfs", "install", "--local"]);
+  remote.git(["lfs", "track", pattern]);
+  for (const [key, value] of Object.entries(config)) remote.git(["config", key, value]);
+  remote.git(["add", ".gitattributes"]);
+  const env: Record<string, string> = { GIT_CONFIG_COUNT: String(Object.keys(config).length) };
+  Object.entries(config).forEach(([key, value], index) => {
+    env[`GIT_CONFIG_KEY_${index}`] = key;
+    env[`GIT_CONFIG_VALUE_${index}`] = value;
+  });
+  return env;
+}

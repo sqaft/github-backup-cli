@@ -21,6 +21,18 @@ async function checkGit(exec: Exec): Promise<void> {
   }
 }
 
+/** Fails with exit code 2 when Git LFS is enabled but `git-lfs` is missing. */
+async function checkLfs(exec: Exec): Promise<void> {
+  try {
+    await exec("git", ["lfs", "version"]);
+  } catch {
+    throw new PrerequisiteError(
+      "git-lfs is not installed; install it from https://git-lfs.com " +
+        "or rerun with --no-lfs to skip LFS objects",
+    );
+  }
+}
+
 /** Fails with exit code 2 when a target's storage is unreachable or rejects the credentials. */
 async function checkTargets(targets: Target[]): Promise<void> {
   for (const target of targets) {
@@ -75,6 +87,7 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
     createTarget(target, { keep: resolveKeep(target.keep, config.keep) }),
   );
   await checkGit(deps.exec);
+  if (config.lfs) await checkLfs(deps.exec);
   await checkTargets(targets);
 
   const controller = new AbortController();
@@ -101,6 +114,7 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
         cacheDir: config.cacheDir,
         concurrency: config.concurrency,
         wiki: config.wiki,
+        lfs: config.lfs,
       },
       {
         exec: deps.exec,

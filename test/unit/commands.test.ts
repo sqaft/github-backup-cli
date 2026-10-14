@@ -228,6 +228,37 @@ describe("backup", () => {
     const { run } = setup();
     expect(await run(["backup", "--bogus"])).toBe(2);
   });
+
+  describe("git-lfs prerequisite", () => {
+    const withoutLfs = (calls: string[][]): Exec => {
+      return async (_cmd, args) => {
+        calls.push(args);
+        if (args[0] === "lfs") {
+          throw new ExecError("git: 'lfs' is not a git command", "git", 1, "not a git command");
+        }
+        return { stdout: "", stderr: "" };
+      };
+    };
+    const lfsCalls = (calls: string[][]) => calls.filter((args) => args[0] === "lfs");
+
+    it("exits 2 with install and --no-lfs instructions when git-lfs is missing", async () => {
+      const calls: string[][] = [];
+      const { run, err } = setup({ exec: withoutLfs(calls) });
+      expect(await run(["backup", "--local", path.join(home, "out")])).toBe(2);
+      expect(err.join("\n")).toContain("https://git-lfs.com");
+      expect(err.join("\n")).toContain("rerun with --no-lfs to skip LFS objects");
+    });
+
+    it.each([
+      ["--no-lfs", {}, ["--no-lfs"]],
+      ["GHBACKUP_LFS=false", { GHBACKUP_LFS: "false" }, []],
+    ])("is not checked with %s", async (_name, env, flags) => {
+      const calls: string[][] = [];
+      const { run } = setup({ exec: withoutLfs(calls), env });
+      expect(await run(["backup", "--local", path.join(home, "out"), ...flags])).toBe(0);
+      expect(lfsCalls(calls)).toEqual([]);
+    });
+  });
 });
 
 describe("program", () => {
