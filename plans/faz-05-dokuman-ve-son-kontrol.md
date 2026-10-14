@@ -1,6 +1,6 @@
 # Faz 5 — Dokümantasyon ve son kontrol
 
-**Durum:** Bekliyor
+**Durum:** Devam ediyor
 
 ## Amaç
 

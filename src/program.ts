@@ -15,9 +15,17 @@ function collect(value: string, previous: string[] = []): string[] {
 
 function addCommonOptions(command: Command): Command {
   return command
-    .option("--config <path>", "path to the config file")
-    .option("--include <glob>", "only repositories matching owner/repo glob (repeatable)", collect)
-    .option("--exclude <glob>", "skip repositories matching owner/repo glob (repeatable)", collect)
+    .option("--config <path>", "config file (default: ~/.config/github-backup-cli/config.json)")
+    .option(
+      "--include <glob>",
+      "only repositories matching this owner/repo glob (repeatable; default */*)",
+      collect,
+    )
+    .option(
+      "--exclude <glob>",
+      "skip repositories matching this owner/repo glob (repeatable)",
+      collect,
+    )
     .option("--no-archived", "skip archived repositories")
     .option("--no-forks", "skip forks")
     .option("--json", "machine-readable output on stdout")
@@ -61,13 +69,23 @@ export function createProgram(deps: CommandDeps): Program {
   });
 
   addCommonOptions(program.command("backup").description("back up repositories to the targets"))
-    .option("--cache-dir <dir>", "directory for mirrors and temporary files")
-    .option("--concurrency <n>", "repositories processed in parallel")
-    .option("--keep <n>", "snapshots to keep per repository and target")
+    .option(
+      "--cache-dir <dir>",
+      "directory for mirrors and temporary files (default: ~/.cache/github-backup-cli)",
+    )
+    .option("--concurrency <n>", "repositories processed in parallel (default 4)")
+    .option(
+      "--keep <n>",
+      "snapshots to keep per repository and target (default 7; a target's own keep wins)",
+    )
     .option("--no-wiki", "skip wikis")
     .option("--no-lfs", "skip Git LFS objects")
-    .option("--target <name>", "run only this target (repeatable)", collect)
-    .option("--local <path>", "add a temporary local target at this path")
+    .option(
+      "--target <name>",
+      "run only the configured target with this name (repeatable)",
+      collect,
+    )
+    .option("--local <path>", 'add a temporary local target named "local" at this directory')
     .action(async (_opts, command: Command) => {
       exitCode = await runBackup(explicitOptions<BackupOptions>(command), deps);
     });
