@@ -8,6 +8,7 @@ import type { Logger } from "../util/log.js";
 import { formatStamp, sleep } from "../util/time.js";
 import type { ToolInfo } from "../util/tool.js";
 import { createGit } from "./git.js";
+import { createLfsTar, fetchLfs, hasLfsObjects } from "./lfs.js";
 import { syncMirror } from "./mirror.js";
 import { applyRetention } from "./retention.js";
 import { buildManifest, createBundle, hashRefs, listRefs } from "./snapshot.js";
@@ -51,6 +52,8 @@ export interface BackupInput {
   cacheDir: string;
   concurrency: number;
   wiki: boolean;
+  /** Also back up Git LFS objects (repositories only, not wikis). */
+  lfs: boolean;
 }
 
 export interface BackupContext {
@@ -176,6 +179,17 @@ async function processUnit(
       tmpDir = await mkdtemp(path.join(input.cacheDir, "tmp", "unit-"));
       const bundle = path.join(tmpDir, "snapshot.bundle");
       const bundleBytes = await retry(() => createBundle(git, unit.mirrorDir, bundle));
+      let lfsTar: string | undefined;
+      let lfsTarBytes: number | undefined;
+      // LFS objects belong to refs, so they are only fetched when a new snapshot is due.
+      if (input.lfs && unit.kind === "repo") {
+        await retry(() => fetchLfs(git, unit.mirrorDir));
+        if (await hasLfsObjects(unit.mirrorDir)) {
+          lfsTar = path.join(tmpDir, "snapshot.lfs.tar");
+          const file = lfsTar;
+          lfsTarBytes = await retry(() => createLfsTar(unit.mirrorDir, file));
+        }
+      }
       const stamp = formatStamp((ctx.now ?? (() => new Date()))());
       const manifest = buildManifest({
         source: unit.repo.source,
@@ -183,11 +197,18 @@ async function processUnit(
         stamp,
         refs,
         bundleBytes,
+        ...(lfsTarBytes === undefined ? {} : { lfsTarBytes }),
         tool: ctx.tool,
       });
       for (const target of pending) {
         try {
-          await retry(() => target.putSnapshot(unit.key, stamp, { bundle, manifest }));
+          await retry(() =>
+            target.putSnapshot(unit.key, stamp, {
+              bundle,
+              ...(lfsTar ? { lfsTar } : {}),
+              manifest,
+            }),
+          );
           await retry(() => applyRetention(target, unit.key));
           results.push({ target: target.name, status: "created", stamp });
           log.info(`snapshot ${stamp} written to ${target.name}`, unit.key);

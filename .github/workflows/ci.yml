@@ -35,6 +35,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - name: Ensure git-lfs is installed
+        run: git lfs version || (sudo apt-get update && sudo apt-get install -y git-lfs)
       - run: npm run lint
       - run: npm run typecheck
       - name: Wait for the S3 server

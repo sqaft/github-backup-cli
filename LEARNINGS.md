@@ -11,3 +11,6 @@ Claude Code bulut oturumlarında `~/.claude/CLAUDE.md` bulunmaz. Yalnızca repod
 
 ## 2026-10-14 — AWS SDK v3 varsayılan olarak CRC32 sağlama toplamı ekler
 Üçüncü parti S3 servisleri bu başlıkları reddedebildiği için istemci `requestChecksumCalculation` ve `responseChecksumValidation` için `WHEN_REQUIRED` ile oluşturulur (K-035); `DeleteObjects` gibi zorunlu kılan işlemler yine sağlama toplamı gönderir.
+
+## 2026-10-14 — LFS testleri için sunucu gerekmez: standalone file transfer
+`git-lfs` yerleşik `lfs-standalone-file` aktarımıyla `lfs.url=file://<dizin>` bir LFS sunucusu gibi kullanılabilir (`lfs.standalonetransferagent=lfs-standalone-file`). Dizin var olan bir git dizini (ör. `git init --bare`) olmalıdır; aksi halde "chdir" veya "not a git repository" hatası gelir. Nesneler `<dizin>/lfs/objects` altına yazılır. Bare mirror'da `git lfs fetch --all` LFS'siz repoda da hata vermez ve boş bir `lfs/` bırakır; "LFS var mı" kontrolü dizinin değil dosyanın varlığına bakmalıdır.
