@@ -40,6 +40,7 @@ src/
     index.ts             # tür → uygulama kaydı
   targets/
     types.ts             # Target arayüzü, Manifest, SnapshotFiles
+    names.ts             # `<stamp>.<uzantı>` dosya/nesne adı ayrıştırma (local ve s3 ortak)
     local.ts
     s3.ts
     index.ts
@@ -53,7 +54,7 @@ src/
     errors.ts            # ExitCode, CliError, ConfigError, PrerequisiteError
 test/
   unit/
-  integration/           # geçici git repoları, local hedef, MinIO
+  integration/           # geçici git repoları, local hedef, S3 (S3Proxy)
 ```
 
 ## Genişletilebilirlik
@@ -70,6 +71,7 @@ test/
   - `listSnapshots(repoKey): Promise<string[]>`: manifest'i olan (tamamlanmış) snapshot'ların zaman damgaları, eskiden yeniye.
   - `deleteSnapshot(repoKey, stamp)`: bundle, lfs.tar ve manifest silinir (manifest ilk).
   - `cleanupIncomplete(repoKey)`: manifest'i olmayan yarım dosyaları ve `.partial` dosyalarını siler.
+  - `checkAccess?()`: isteğe bağlı; depolamaya erişilemiyorsa okunabilir bir nedenle hata fırlatır (`s3`: `HeadBucket`). `backup` bunu kilitten önce çağırır.
 - `repoKey` = `<source.id>/<owner>/<repo>` (wiki için `<source.id>/<owner>/<repo>.wiki`).
 - Kaynak türü → uygulama eşlemesi `sources/index.ts` içindeki `createSource` fonksiyonundadır; `core/discover.ts` her kaynak yapılandırması için ön koşulları kontrol eder, listeler ve o kaynağın filtrelerini uygular.
 - Dış komut çağıran modüller `Exec` fonksiyon tipini (`util/exec.ts`) bağımlılık olarak alır; testlerde sahte `exec` verilir. Komutlar `CommandDeps` ile `exec`, `env`, `stdout`, `stderr` alır.
@@ -131,7 +133,14 @@ Ortak düzen (her iki hedefte aynı):
 - `<stamp>`: UTC, `YYYYMMDDTHHMMSSZ` (sıralanabilir, S3 anahtarında güvenli).
 - Manifest: `{ version: 1, source, fullName, stamp, refsHash, refs: [{name, sha}], bundleBytes, lfsTarBytes?, tool: { name, version } }`.
 - `local`: `<kök>` = `path`. Dosyalar önce `.partial` uzantısıyla yazılır, sonra `rename`.
-- `s3`: `<kök>` = `s3://<bucket>/<prefix>`. `@aws-sdk/lib-storage` `Upload` ile stream yükleme. `endpoint`, `region`, `forcePathStyle` ayarlanabilir (R2, B2, MinIO). Kimlik: config'teki `accessKeyId`/`secretAccessKey`, yoksa `GHBACKUP_S3_ACCESS_KEY_ID`/`GHBACKUP_S3_SECRET_ACCESS_KEY`, yoksa AWS SDK'nın varsayılan zinciri.
+- `s3`: `<kök>` = `s3://<bucket>/<prefix>`; `prefix` baş/son `/` ve çift `/` temizlenerek normalleştirilir, boşsa kök bucket'tır. `@aws-sdk/lib-storage` `Upload` ile stream yükleme (16 MiB part, 4 paralel part; hata olursa SDK multipart'ı iptal eder). `endpoint`, `region` (varsayılan `us-east-1`), `forcePathStyle` ayarlanabilir (R2, B2, MinIO). Kimlik: config'teki `accessKeyId`/`secretAccessKey`, yoksa `GHBACKUP_S3_ACCESS_KEY_ID`/`GHBACKUP_S3_SECRET_ACCESS_KEY`, yoksa AWS SDK'nın varsayılan zinciri; yalnızca biri verilirse `ConfigError` (çıkış 2).
+  - İstemci `requestChecksumCalculation` ve `responseChecksumValidation` için `WHEN_REQUIRED` kullanır (SDK varsayılanı olan CRC32 üçüncü parti servislerde imza hatası verebilir; K-035).
+  - `latestManifest`/`listSnapshots`: `<prefix>/<repoKey>/` altı `ListObjectsV2` ile sayfalı listelenir; yalnızca doğrudan alt nesneler ve `<stamp>.<uzantı>` adlıları sayılır, manifest'i (`.json`) olanlar tamamlanmıştır.
+  - `putSnapshot`: bundle, lfs.tar, en son manifest (`PutObject`, `application/json`). `Upload` bitene kadar nesne görünmez; manifest yazılmadan snapshot tamamlanmış sayılmaz.
+  - `deleteSnapshot`: önce manifest `DeleteObject`, sonra aynı `stamp`'li nesneler `DeleteObjects` ile 1000'lik gruplar halinde; yanıttaki `Errors` hata sayılır.
+  - `cleanupIncomplete`: manifest'siz `stamp`'li nesneleri siler, ardından `ListMultipartUploads`/`AbortMultipartUpload` ile repo altındaki yarım multipart yüklemeleri iptal eder (desteklemeyen veya yetkisiz servislerde sessizce atlanır).
+  - `checkAccess`: `HeadBucket`. `backup`, kilitten önce her hedef için çağırır; hata `target "<ad>": cannot access bucket "<bucket>": <ad/kod> (HTTP <durum>)` mesajıyla çıkış 2 verir. Mesajlardaki anahtarlar `***` olarak maskelenir.
+  - Gereken izinler: `s3:ListBucket` (HeadBucket dahil), `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`; yarım multipart temizliği için ayrıca `s3:ListBucketMultipartUploads` ve `s3:AbortMultipartUpload`.
 
 ## Yapılandırma
 
@@ -208,13 +217,13 @@ Bayraklar (her iki komutta ortak olanlar dahil):
 - Birim (Vitest): config birleştirme ve öncelik, şema hataları, glob filtre, zaman damgası, ref özeti, saklama seçimi, `gh` çıktısının ayrıştırılması (sahte `exec` ile).
 - Entegrasyon (Vitest): geçici dizinde `git init --bare` ile "uzak" repolar; `file://` URL'leri döndüren test kaynağı; mirror → bundle → `local` hedef → `git clone <bundle>` ile geri yükleme doğrulaması; değişmeyen repo için yeni snapshot oluşmaması; saklama.
 - LFS entegrasyon: `git-lfs` kuruluysa yerel LFS deposu olmadan çalışan senaryo; mümkün değilse birim + elle doğrulama.
-- S3 entegrasyon: `GHBACKUP_TEST_S3_ENDPOINT` tanımlıysa MinIO'ya karşı çalışır, değilse atlanır. CI'da MinIO servis container'ı ile çalışır (kimlik `minioadmin`/`minioadmin`, workflow'da sabit).
+- S3 entegrasyon: `GHBACKUP_TEST_S3_ENDPOINT` (+ `GHBACKUP_TEST_S3_ACCESS_KEY_ID`, `GHBACKUP_TEST_S3_SECRET_ACCESS_KEY`, isteğe bağlı `GHBACKUP_TEST_S3_BUCKET`) tanımlıysa herhangi bir S3 uyumlu sunucuya karşı çalışır, değilse atlanır. CI'da `andrewgaul/s3proxy` (S3Proxy, filesystem backend) servis container'ı ile çalışır; kimlik `test-access`/`test-secret`, workflow'da sabit. Yerelde aynı sunucu Maven Central'daki `org.gaul:s3proxy` jar'ıyla (`java -jar s3proxy-<sürüm>-jar-with-dependencies.jar --properties s3proxy.conf`) başlatılabilir. Birim testleri (`test/unit/s3-target.test.ts`) sahte bir istemciyle sayfalama, 1000'lik silme grupları ve hata maskelemeyi sunucusuz doğrular.
 - Gerçek GitHub hesabıyla uçtan uca deneme elle yapılır (💻).
 
 ## Kalite ve CI
 
 - `npm run lint` (Biome check), `npm run format` (Biome format --write), `npm run typecheck` (`tsc --noEmit`), `npm test` (Vitest), `npm run build` (`tsc` → `dist/`).
-- GitHub Actions `ci.yml`: push ve PR'da Node 22 ve 24 matrisinde lint, typecheck, test, build; MinIO servis container'ı.
+- GitHub Actions `ci.yml`: push ve PR'da Node 22 ve 24 matrisinde lint, typecheck, test, build; S3Proxy servis container'ı (testlerden önce `403` dönene kadar beklenir).
 - Dağıtım yok: kullanıcı repoyu klonlar, `npm ci && npm run build`, `node dist/cli.js` veya `npm link` ile `github-backup` komutu.
 
 ## Loglama
