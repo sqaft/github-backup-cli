@@ -23,8 +23,8 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 3 — `s3` hedefi
 
-- [ ] 👤 S3 uyumlu servisi seç, bucket oluştur, yalnızca o bucket'a yetkili erişim anahtarı üret ve config'ine ekle.
-- [ ] 💻 Gerçek bucket'a yedek alıp bir bundle'ı indirerek doğrula.
+- [ ] 👤 S3 uyumlu servisi seç, bucket oluştur, yalnızca o bucket'a yetkili (`s3:ListBucket`, `GetObject`, `PutObject`, `DeleteObject`, isteğe bağlı `ListBucketMultipartUploads`/`AbortMultipartUpload`) erişim anahtarı üret ve config'ine ekle (`chmod 600`).
+- [ ] 💻 Gerçek bucket'a `node dist/cli.js backup --target <s3-adın> --include '<kendi-kullanıcın>/*'` çalıştır, bir bundle'ı indirip `git clone <bundle> /tmp/x` ile doğrula; komutu tekrarlayınca özetin `unchanged` göstermesini kontrol et: gerçek bucket ve `gh` oturumu gerekir, bulutta yok.
 
 ### Faz 4 — Git LFS
 

@@ -40,4 +40,6 @@ export interface Target {
   deleteSnapshot(repoKey: string, stamp: string): Promise<void>;
   /** Removes leftovers of interrupted uploads (files without a manifest). */
   cleanupIncomplete(repoKey: string): Promise<void>;
+  /** Fails with a readable reason when the storage cannot be reached; run before a backup starts. */
+  checkAccess?(): Promise<void>;
 }

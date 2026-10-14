@@ -68,5 +68,5 @@ Kod tarafı bitti; bu ortamda doğrulanabilen tüm kabul kriterleri sağlandı (
 - `commands/backup.ts` yalnızca stub; `BackupOptions` şimdilik `CommonOptions` ile aynı, Faz 2'de `ConfigFlags`'in (cacheDir, concurrency, keep, wiki, lfs, target, local) zaten kapsadığı alanlar kullanılır. `git` varlığının kontrolü (`git --version`) `backup`'ın ön koşul adımına Faz 2'de eklenecek (`list` yalnızca `gh` ister).
 - Config'te `keep` çözümü (hedef `keep` > genel `keep`) henüz bir yardımcıya bağlanmadı; hedef şemasında `keep` isteğe bağlı kalır. Faz 2'de tek fonksiyonla çözülmeli.
 - Araç sürümleri: TypeScript 7, Vitest 5, Biome 2.5, commander 15, zod 4. Hepsi sorunsuz çalıştı. Biome'da `rules.preset` kullanılır (`recommended` alanı kaldırılıyor).
-- CI yalnızca `.github/workflows/ci.yml` ile Node 22/24 matrisinde çalışır; MinIO servisi Faz 3'te eklenecek.
+- CI yalnızca `.github/workflows/ci.yml` ile Node 22/24 matrisinde çalışır; S3 test sunucusu (S3Proxy) Faz 3'te eklendi.
 - Test `config.example.json`'un şemaya uyduğunu doğrular; şema değişirse örnek dosya, mimari.md ve README birlikte güncellenmeli (`REPO.md`).

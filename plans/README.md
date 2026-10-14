@@ -46,7 +46,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 | --- | --- | --- | --- |
 | 1 | İskelet, config ve `list` | Tamamlandı | [faz-01-iskelet-ve-list.md](faz-01-iskelet-ve-list.md) |
 | 2 | Mirror, snapshot ve `local` hedefi | Tamamlandı | [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) |
-| 3 | `s3` hedefi | Bekliyor | [faz-03-s3.md](faz-03-s3.md) |
+| 3 | `s3` hedefi | Tamamlandı | [faz-03-s3.md](faz-03-s3.md) |
 | 4 | Git LFS | Bekliyor | [faz-04-lfs.md](faz-04-lfs.md) |
 | 5 | Dokümantasyon ve son kontrol | Bekliyor | [faz-05-dokuman-ve-son-kontrol.md](faz-05-dokuman-ve-son-kontrol.md) |
 
@@ -59,7 +59,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 - Token ve S3 anahtarları loglanmaz, hata mesajlarında maskelenir.
 - Her faz sonunda `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` temiz ve CI yeşil olmalı.
 - Yeni davranış testle gelir; git işlemleri gerçek geçici repolarla test edilir.
-- Test S3 kimliği (MinIO `minioadmin`) CI workflow'unda sabit yazılır; başka secret yönetimi kullanılmaz.
+- Test S3 kimliği (S3Proxy `test-access`/`test-secret`) CI workflow'unda sabit yazılır; başka secret yönetimi kullanılmaz.
 
 ## Açık noktalar
 
