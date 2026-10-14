@@ -1,6 +1,6 @@
 # Faz 2 — Mirror, snapshot ve `local` hedefi
 
-**Durum:** Bekliyor
+**Durum:** Devam ediyor
 
 ## Amaç
 

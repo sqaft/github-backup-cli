@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
 import { Command, CommanderError, Option } from "commander";
 import { type BackupOptions, runBackup } from "./commands/backup.js";
 import type { CommandDeps, CommonOptions } from "./commands/context.js";
 import { runList } from "./commands/list.js";
 import { CliError, ExitCode } from "./util/errors.js";
 import { exec } from "./util/exec.js";
+import { readToolInfo } from "./util/tool.js";
 
 /** Flags whose negated form (`--no-x`) is the only one users can pass. */
 const NEGATABLE = ["archived", "forks", "wiki", "lfs"] as const;
@@ -43,14 +43,11 @@ export interface Program {
 }
 
 export function createProgram(deps: CommandDeps): Program {
-  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
-    version: string;
-  };
   let exitCode: number = ExitCode.Success;
 
   const program = new Command("github-backup")
     .description("Back up GitHub repositories to local disk and S3-compatible storage")
-    .version(pkg.version)
+    .version(readToolInfo().version)
     .exitOverride()
     .configureOutput({
       writeOut: (text) => deps.stdout(text),
