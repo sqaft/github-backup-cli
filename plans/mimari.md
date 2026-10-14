@@ -6,6 +6,12 @@
 - Dış araçlar: `gh` (kimlik doğrulama ve repo listesi), `git` (mirror, fetch, bundle). İkisi de kullanıcının makinesinde kurulu olmalıdır.
 - S3: S3 uyumlu her servis; endpoint ayarlanabilir.
 
+## Genişletilebilirlik
+
+- `Source` arayüzü: bir git servisinden yedeklenecek repoları listeler ve klon URL'sini ve kimlik bilgisini sağlar. İlk uygulama: `github` (`gh` CLI).
+- `Target` arayüzü: bundle yükleme, mevcut snapshot'ları listeleme, silme. İlk uygulamalar: `local`, `s3`.
+- Çekirdek (keşif → mirror → bundle → hedeflere yükleme → saklama) kaynak ve hedef türünden bağımsızdır. Yeni kaynak/hedef yalnızca yeni bir modül ve config türü ekler.
+
 ## Akış
 
 1. `gh` ile kişisel repolar ve üye olunan org'ların repoları listelenir.

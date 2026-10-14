@@ -11,7 +11,11 @@
 - **Wiki yedeği:** wiki'si olan repoların wiki reposu da mirror edilir. (Faz TBD)
 - **S3 yedeği:** her repo git bundle olarak S3 uyumlu bucket'a (AWS S3, Cloudflare R2, Backblaze B2, MinIO vb.) yüklenir; ref'ler değişmediyse yükleme atlanır; repo başına son N snapshot tutulur. (Faz TBD)
 
+- **Genişletilebilir yapı:** kaynaklar (git servisleri) ve hedefler (depolama) eklenti arayüzleriyle ayrılır; ilk sürümde `github`, `local`, `s3`. (Faz TBD)
+
 ## Kapsam dışı
+
+- GitHub dışındaki git servisleri ve S3/yerel dışındaki depolamalar: ilk sürümde yok, mimari bunlara hazır.
 
 - Issue, PR, yorum, release ve asset gibi GitHub metadata'sı: ilk sürüm yalnızca git verisi + wiki.
 - Dahili zamanlayıcı/daemon: zamanlama kullanıcının cron/launchd'si ile yapılır.
@@ -38,8 +42,8 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 
 ## Açık noktalar
 
-- S3 anahtar düzeni ve snapshot saklama: önerilen `<prefix>/<owner>/<repo>/<UTC zaman damgası>.bundle`, ref'ler değiştiyse yeni bundle, repo başına son N (varsayılan 7).
-- Yapılandırma: config dosyası biçimi ve yeri, CLI komutları ve bayrakları.
+- `local` hedefinin biçimi (bundle snapshot mı, düz mirror mı) ve mirror önbelleğinin yeri.
+- Config dosyası biçimi ve yeri, env adları, bayraklar.
 - Filtreler: arşivlenmiş repolar, fork'lar, include/exclude desenleri.
 - Git kimlik doğrulaması (private repo klonlama için `gh` token'ının git'e verilmesi), Git LFS.
 - Paralellik, hata yönetimi, loglama, çıkış kodları.
