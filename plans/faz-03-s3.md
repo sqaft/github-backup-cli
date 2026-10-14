@@ -12,7 +12,7 @@ Snapshot'lar S3 uyumlu bir bucket'a (AWS S3, R2, B2, MinIO) `local` ile aynı d�
 
 ## Kapsam
 
-- `targets/s3.ts`: `@aws-sdk/client-s3` + `@aws-sdk/lib-storage` `Upload` (stream). Config: `bucket`, `prefix`, `endpoint`, `region` (varsayılan `us-east-1`), `forcePathStyle`, `accessKeyId`, `secretAccessKey`, `keep`.
+- `targets/s3.ts` (`targets/index.ts`'teki yer tutucunun yerine; `Target` arayüzü `cleanupIncomplete` dahil): `@aws-sdk/client-s3` + `@aws-sdk/lib-storage` `Upload` (stream). Config: `bucket`, `prefix`, `endpoint`, `region` (varsayılan `us-east-1`), `forcePathStyle`, `accessKeyId`, `secretAccessKey`, `keep`.
 - Kimlik önceliği: config → `GHBACKUP_S3_*` env → SDK varsayılan zinciri.
 - `latestManifest`: `ListObjectsV2` (sayfalı) ile `<prefix>/<repoKey>/` altındaki `.json`'lar, en yenisi `GetObject`.
 - Yükleme sırası: bundle, lfs.tar (varsa), manifest.
@@ -51,4 +51,4 @@ Snapshot'lar S3 uyumlu bir bucket'a (AWS S3, R2, B2, MinIO) `local` ile aynı d�
 
 ## Devam notları
 
-_Henüz yok._
+_Henüz başlanmadı._ Faz 2'den devralınanlar için [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) **Devam notları**'na bak: `Target` arayüzü (`targets/types.ts`, `cleanupIncomplete` dahil), `createTarget`'taki `s3` yer tutucusu, `applyRetention`, `HeadBucket` ön kontrolünün takılacağı yer ve test yardımcıları.

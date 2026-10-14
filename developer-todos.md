@@ -19,7 +19,7 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 2 — Mirror, snapshot ve `local` hedefi
 
-- [ ] 💻 Kendi repolarınla `backup --local` çalıştırıp bir bundle'ı `git clone` ile doğrula (private repo dahil): gerçek `gh` oturumu gerekir.
+- [ ] 💻 `npm ci && npm run build && node dist/cli.js backup --local ~/git-backup-test --include '<kendi-kullanıcın>/*'` çalıştır, bir bundle'ı `git clone <bundle> /tmp/x` ile aç ve private repo dahil olduğunu kontrol et; komutu tekrar çalıştırınca özetin `unchanged` göstermesini doğrula: gerçek `gh` oturumu gerekir, bulutta yok.
 
 ### Faz 3 — `s3` hedefi
 
