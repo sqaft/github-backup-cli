@@ -5,6 +5,7 @@ import { resolveKeep } from "../core/retention.js";
 import { backupRepos, type Summary } from "../core/run.js";
 import type { ListFailure } from "../sources/types.js";
 import { createTarget } from "../targets/index.js";
+import type { Target } from "../targets/types.js";
 import { ConfigError, ExitCode, PrerequisiteError } from "../util/errors.js";
 import type { Exec } from "../util/exec.js";
 import { readToolInfo } from "../util/tool.js";
@@ -17,6 +18,18 @@ async function checkGit(exec: Exec): Promise<void> {
     await exec("git", ["--version"]);
   } catch {
     throw new PrerequisiteError("git is not installed or not in PATH; install git and try again");
+  }
+}
+
+/** Fails with exit code 2 when a target's storage is unreachable or rejects the credentials. */
+async function checkTargets(targets: Target[]): Promise<void> {
+  for (const target of targets) {
+    try {
+      await target.checkAccess?.();
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new PrerequisiteError(`target "${target.name}": ${reason}`);
+    }
   }
 }
 
@@ -62,6 +75,7 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
     createTarget(target, { keep: resolveKeep(target.keep, config.keep) }),
   );
   await checkGit(deps.exec);
+  await checkTargets(targets);
 
   const controller = new AbortController();
   const abort = () => controller.abort();

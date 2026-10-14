@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isStamp } from "../util/time.js";
+import { parseSnapshotName as parseName } from "./names.js";
 import type { Manifest, SnapshotFiles, Target } from "./types.js";
 
 export interface LocalTargetOptions {
@@ -11,14 +11,6 @@ export interface LocalTargetOptions {
 }
 
 const PARTIAL = ".partial";
-
-/** Splits `20260101T000000Z.bundle` into stamp and extension; null for other names. */
-function parseName(file: string): { stamp: string; ext: string } | null {
-  const dot = file.indexOf(".");
-  if (dot < 0) return null;
-  const stamp = file.slice(0, dot);
-  return isStamp(stamp) ? { stamp, ext: file.slice(dot) } : null;
-}
 
 async function listDir(dir: string): Promise<string[]> {
   try {

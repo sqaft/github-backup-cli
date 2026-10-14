@@ -1,6 +1,6 @@
 # Faz 3 — `s3` hedefi
 
-**Durum:** Bekliyor
+**Durum:** Devam ediyor
 
 ## Amaç
 
