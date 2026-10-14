@@ -1,27 +1,34 @@
 # github-backup-cli — Plan
 
-`gh` ile oturum açılmış hesabın kişisel repolarını ve üyesi olduğu tüm organizasyonların repolarını (wiki'leriyle birlikte) yerel diske ve/veya S3 uyumlu bir bucket'a yedekleyen, her çalıştırmada yedeği güncelleyen bir Node.js/TypeScript CLI. Amaç, GitHub hesabı veya repo kaybına karşı tüm git geçmişinin bağımsız bir kopyasını tutmak.
+`gh` ile oturum açılmış hesabın kişisel repolarını ve üyesi olduğu tüm organizasyonların repolarını (wiki ve LFS nesneleriyle) yerel diske ve/veya S3 uyumlu bir bucket'a yedekleyen, her çalıştırmada yalnızca değişenleri yeni snapshot olarak ekleyen bir Node.js/TypeScript CLI (`github-backup`). Amaç, GitHub hesabı veya repo kaybına karşı tüm git geçmişinin bağımsız, geri yüklenebilir bir kopyasını tutmak.
 
 **Planlama:** Devam ediyor
 
 ## Özellikler
 
-- **Repo keşfi:** `gh` ile kişisel ve üye olunan tüm org repoları (private dahil) listelenir. (Faz TBD)
-- **Yerel mirror:** her repo bare mirror olarak klonlanır, sonraki çalıştırmalarda artımlı fetch edilir; silinen branch ve repolar yedekte kalır. (Faz TBD)
-- **Wiki yedeği:** wiki'si olan repoların wiki reposu da mirror edilir. (Faz TBD)
-- **S3 yedeği:** her repo git bundle olarak S3 uyumlu bucket'a (AWS S3, Cloudflare R2, Backblaze B2, MinIO vb.) yüklenir; ref'ler değişmediyse yükleme atlanır; repo başına son N snapshot tutulur. (Faz TBD)
-
-- **Genişletilebilir yapı:** kaynaklar (git servisleri) ve hedefler (depolama) eklenti arayüzleriyle ayrılır; ilk sürümde `github`, `local`, `s3`. (Faz TBD)
-- **Git LFS:** LFS nesneleri snapshot başına tar olarak yedeklenir; `git-lfs` yoksa hata, `--no-lfs` ile atlanır. (Faz TBD)
+- **Repo keşfi ve `list`:** `gh` ile kişisel ve üye olunan tüm org repoları (private, arşivli, fork dahil) listelenir; include/exclude glob ve arşiv/fork filtreleri. (Faz 1)
+- **Yapılandırma:** JSON config + `GHBACKUP_*` env + bayraklar; öncelik bayrak > env > dosya. (Faz 1)
+- **Mirror önbelleği:** her repo bare mirror olarak tutulur ve artımlı fetch edilir; silinen branch/repo yedekte kalır; `refs/pull/*` alınmaz. (Faz 2)
+- **Wiki yedeği:** wiki'si olan repoların wiki reposu da yedeklenir. (Faz 2)
+- **Bundle snapshot'ları:** ref'ler değiştiyse `git bundle` + manifest; hedef ve repo başına son N snapshot tutulur. (Faz 2)
+- **`local` hedefi:** snapshot'lar bir dizine yazılır. (Faz 2)
+- **Dayanıklı çalışma:** paralel işleme, yeniden deneme, hata olunca devam, özet ve çıkış kodları, eşzamanlı çalıştırma kilidi. (Faz 2)
+- **`s3` hedefi:** S3 uyumlu her servise multipart yükleme. (Faz 3)
+- **Git LFS:** LFS nesneleri snapshot başına tar olarak yedeklenir; `git-lfs` yoksa hata, `--no-lfs` ile atlanır. (Faz 4)
+- **Genişletilebilir yapı:** kaynaklar (git servisleri) ve hedefler (depolama) arayüzlerle ayrılır; yeni tür çekirdeği değiştirmeden eklenir. (Faz 1–3)
+- **Dokümantasyon:** kurulum, config referansı, cron/launchd, geri yükleme. (Faz 5)
 
 ## Kapsam dışı
 
-- GitHub dışındaki git servisleri ve S3/yerel dışındaki depolamalar: ilk sürümde yok, mimari bunlara hazır.
-
-- Issue, PR, yorum, release ve asset gibi GitHub metadata'sı: ilk sürüm yalnızca git verisi + wiki.
+- Issue, PR, yorum, release ve asset gibi GitHub metadata'sı: ilk sürüm yalnızca git verisi, wiki ve LFS.
+- GitHub dışındaki git servisleri ve `local`/`s3` dışındaki depolamalar: ilk sürümde yok, mimari bunlara hazır.
 - GitHub Enterprise: yalnızca github.com.
-- Dahili zamanlayıcı/daemon: zamanlama kullanıcının cron/launchd'si ile yapılır.
+- Collaborator olunan başka kullanıcıların repoları: yalnızca kendi hesabın ve üye olunan org'lar.
+- `restore` komutu: geri yükleme README'de git komutlarıyla anlatılır.
+- Dahili zamanlayıcı/daemon: zamanlama cron/launchd ile yapılır.
 - GitHub ile birebir eşitleme (silinen repo/branch'i yedekten silme): yedeğin amacı kaybı önlemek.
+- npm yayını: araç repodan kurulur.
+- Windows desteği.
 
 ## Belgeler
 
@@ -37,16 +44,23 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 
 | Faz | Başlık | Durum | Dosya |
 | --- | --- | --- | --- |
+| 1 | İskelet, config ve `list` | Bekliyor | [faz-01-iskelet-ve-list.md](faz-01-iskelet-ve-list.md) |
+| 2 | Mirror, snapshot ve `local` hedefi | Bekliyor | [faz-02-mirror-ve-local.md](faz-02-mirror-ve-local.md) |
+| 3 | `s3` hedefi | Bekliyor | [faz-03-s3.md](faz-03-s3.md) |
+| 4 | Git LFS | Bekliyor | [faz-04-lfs.md](faz-04-lfs.md) |
+| 5 | Dokümantasyon ve son kontrol | Bekliyor | [faz-05-dokuman-ve-son-kontrol.md](faz-05-dokuman-ve-son-kontrol.md) |
 
 ## Çalışma kuralları
 
-- Henüz netleşmedi.
+- Dil: `plans/` Türkçe; kod, yorumlar, kök README, CLI çıktısı ve commit mesajları İngilizce.
+- Çekirdek (`src/core`) belirli bir kaynak veya hedef türünü bilmez; türlere özel kod yalnızca `src/sources/*` ve `src/targets/*` içindedir.
+- Dış komutlar yalnızca `util/exec.ts` üzerinden ve argüman dizisiyle çağrılır (shell yok).
+- Kullanıcının global git config'i hiçbir koşulda değiştirilmez.
+- Token ve S3 anahtarları loglanmaz, hata mesajlarında maskelenir.
+- Her faz sonunda `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` temiz ve CI yeşil olmalı.
+- Yeni davranış testle gelir; git işlemleri gerçek geçici repolarla test edilir.
+- Test S3 kimliği (MinIO `minioadmin`) CI workflow'unda sabit yazılır; başka secret yönetimi kullanılmaz.
 
 ## Açık noktalar
 
-- Config alanlarının ve bayrakların tam listesi.
-- Paralellik, hata yönetimi, loglama, çıkış kodları.
-- Node sürümü, paket yöneticisi, dağıtım (npm yayını mı, repodan çalıştırma mı).
-- Test, lint, format, typecheck ve CI.
-- Dil kuralları; `REPO.md` durum ve tür satırları.
-- Fazlar.
+- Yok.

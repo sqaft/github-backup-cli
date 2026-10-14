@@ -13,4 +13,23 @@ Sıradaki fazı engelleyen işler.
 
 ## Faza göre
 
-- Yok.
+### Faz 1 — İskelet, config ve `list`
+
+- [ ] 💻 `npm ci && npm run build && node dist/cli.js list` ile listenin kişisel ve tüm org repolarını içerdiğini kontrol et: bulutta senin `gh` oturumun yok.
+
+### Faz 2 — Mirror, snapshot ve `local` hedefi
+
+- [ ] 💻 Kendi repolarınla `backup --local` çalıştırıp bir bundle'ı `git clone` ile doğrula (private repo dahil): gerçek `gh` oturumu gerekir.
+
+### Faz 3 — `s3` hedefi
+
+- [ ] 👤 S3 uyumlu servisi seç, bucket oluştur, yalnızca o bucket'a yetkili erişim anahtarı üret ve config'ine ekle.
+- [ ] 💻 Gerçek bucket'a yedek alıp bir bundle'ı indirerek doğrula.
+
+### Faz 4 — Git LFS
+
+- [ ] 💻 LFS kullanan bir repo varsa yedekleyip README'deki adımlarla geri yükle.
+
+### Faz 5 — Dokümantasyon ve son kontrol
+
+- [ ] 💻 README'deki cron örneğiyle zamanlanmış yedeği kur ve ertesi gün özeti kontrol et.
