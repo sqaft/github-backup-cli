@@ -15,11 +15,11 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 1 — İskelet, config ve `list`
 
-- [ ] 💻 `npm ci && npm run build && node dist/cli.js list` ile listenin kişisel ve tüm org repolarını içerdiğini kontrol et: bulutta senin `gh` oturumun yok.
+- [x] 💻 `npm ci && npm run build && node dist/cli.js list` ile listenin kişisel ve tüm org repolarını içerdiğini kontrol et: bulutta senin `gh` oturumun yok.
 
 ### Faz 2 — Mirror, snapshot ve `local` hedefi
 
-- [ ] 💻 `npm ci && npm run build && node dist/cli.js backup --local ~/git-backup-test --include '<kendi-kullanıcın>/*'` çalıştır, bir bundle'ı `git clone <bundle> /tmp/x` ile aç ve private repo dahil olduğunu kontrol et; komutu tekrar çalıştırınca özetin `unchanged` göstermesini doğrula: gerçek `gh` oturumu gerekir, bulutta yok.
+- [x] 💻 `npm ci && npm run build && node dist/cli.js backup --local ~/git-backup-test --include '<kendi-kullanıcın>/*'` çalıştır, bir bundle'ı `git clone <bundle> /tmp/x` ile aç ve private repo dahil olduğunu kontrol et; komutu tekrar çalıştırınca özetin `unchanged` göstermesini doğrula: gerçek `gh` oturumu gerekir, bulutta yok.
 
 ### Faz 3 — `s3` hedefi
 
@@ -28,7 +28,7 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 4 — Git LFS
 
-- [ ] 💻 LFS kullanan gerçek bir GitHub reposunu yedekle (`node dist/cli.js backup --local ~/git-backup-test --include '<owner>/<repo>'`), `<stamp>.lfs.tar` oluştuğunu gör ve [faz-04-lfs.md](plans/faz-04-lfs.md) **Devam notları**'ndaki adımlarla bir LFS dosyasını geri yükleyip sha256'sını orijinalle karşılaştır: gerçek `gh` oturumu ve gerçek LFS sunucusu gerekir, bulutta yok.
+- [ ] 💻 LFS kullanan gerçek bir GitHub reposunu yedekle (erişimin olan repolarda GitHub kod aramasıyla LFS kullanan repo bulunamadı; böyle bir repon olursa dene) (`node dist/cli.js backup --local ~/git-backup-test --include '<owner>/<repo>'`), `<stamp>.lfs.tar` oluştuğunu gör ve [faz-04-lfs.md](plans/faz-04-lfs.md) **Devam notları**'ndaki adımlarla bir LFS dosyasını geri yükleyip sha256'sını orijinalle karşılaştır: gerçek `gh` oturumu ve gerçek LFS sunucusu gerekir, bulutta yok.
 
 ### Faz 5 — Dokümantasyon ve son kontrol
 

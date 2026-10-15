@@ -42,7 +42,7 @@
 
 ## 👤 Kullanıcı aksiyonları
 
-- [ ] 💻 Kendi makinende `node dist/cli.js backup --local ~/git-backup-test --include '<kendi-kullanıcın>/*'` çalıştır; bir bundle'ı `git clone <bundle> /tmp/x` ile açıp doğrula. Private bir repo da dahil olsun (gh kimlik doğrulamasının çalıştığını kanıtlar). İkinci çalıştırmada özetin `unchanged` göstermesini kontrol et.
+- [x] 💻 Kendi makinende `node dist/cli.js backup --local ~/git-backup-test --include '<kendi-kullanıcın>/*'` çalıştır; bir bundle'ı `git clone <bundle> /tmp/x` ile açıp doğrula. Private bir repo da dahil olsun (gh kimlik doğrulamasının çalıştığını kanıtlar). İkinci çalıştırmada özetin `unchanged` göstermesini kontrol et.
 
 ## Kabul kriterleri
 
@@ -59,7 +59,7 @@
 
 ## Devam notları
 
-Kod tarafı bitti. Lint, typecheck, test (178) ve build temiz. Kabul kriterlerinin tamamı otomatik testlerle doğrulandı (`test/integration/backup.test.ts`, `mirror-snapshot.test.ts`, `local-target.test.ts`; `test/unit/lock|retention|async.test.ts`). Açık kalan tek madde gerçek `gh` oturumuyla elle deneme (yukarıdaki 💻; bulutta `gh` oturumu yok). Bu denemede `refs/pull/*` yüzünden beklenmedik bir şey çıkarsa `core/mirror.ts` refspec'lerine bak.
+Kod tarafı bitti. Lint, typecheck, test (178) ve build temiz. Kabul kriterlerinin tamamı otomatik testlerle doğrulandı (`test/integration/backup.test.ts`, `mirror-snapshot.test.ts`, `local-target.test.ts`; `test/unit/lock|retention|async.test.ts`). Gerçek `gh` oturumuyla iki private repo yerel hedefe yedeklendi; bundle `git clone` ile açıldı, ikinci çalıştırmada özet `2 unchanged` gösterdi. `refs/pull/*` ile ilgili beklenmedik bir durum görülürse `core/mirror.ts` refspec'lerine bak.
 
 Faz 3 (s3) için:
 

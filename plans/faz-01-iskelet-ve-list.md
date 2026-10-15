@@ -45,7 +45,7 @@
 
 ## 👤 Kullanıcı aksiyonları
 
-- [ ] 💻 Kendi makinende `npm ci && npm run build && node dist/cli.js list` çalıştırıp listenin beklediğin repoları (kişisel + tüm org'lar) içerdiğini kontrol et.
+- [x] 💻 Kendi makinende `npm ci && npm run build && node dist/cli.js list` çalıştırıp listenin beklediğin repoları (kişisel + tüm org'lar) içerdiğini kontrol et.
 
 ## Kabul kriterleri
 
@@ -63,7 +63,7 @@
 
 Kod tarafı bitti; bu ortamda doğrulanabilen tüm kabul kriterleri sağlandı (lint, typecheck, test, build temiz; `gh` yokken ve oturum kapalıyken `list` çıkış 2; `backup` "not implemented" ile çıkış 2; `list --json --exclude 'org/*'` birim testinde filtrelenmiş JSON üretir; config önceliği testli).
 
-- Açık kalan: gerçek `gh` oturumuyla `list` denemesi (kullanıcı aksiyonu 💻, bulutta `gh` oturumu yok). `node dist/cli.js list` kişisel repoları ve tüm org'ları göstermeli; bir org SSO yetkisi istiyorsa uyarı + çıkış 1 beklenir.
+- Gerçek `gh` oturumuyla `node dist/cli.js list` denendi: 447 repo, kişisel repolar ve kullanıcının üye olduğu tüm org'lar listede.
 - Faz 2 için hazır olanlar: `Exec` tipi (`util/exec.ts`, git komutları için de kullanılacak; `ExecError.code` `ENOENT`/`ETIMEDOUT` dönebilir), `Logger` (`debug` yalnızca `--verbose`), `CommandDeps` (`commands/context.ts`), `prepare()` (config + logger), `discoverRepos()` (`sources` haritası `gitEnv()` için), `ConfigError`/`PrerequisiteError`/`CliError`/`ExitCode` (`util/errors.ts`; `program.ts` bunları çıkış koduna çevirir).
 - `commands/backup.ts` yalnızca stub; `BackupOptions` şimdilik `CommonOptions` ile aynı, Faz 2'de `ConfigFlags`'in (cacheDir, concurrency, keep, wiki, lfs, target, local) zaten kapsadığı alanlar kullanılır. `git` varlığının kontrolü (`git --version`) `backup`'ın ön koşul adımına Faz 2'de eklenecek (`list` yalnızca `gh` ister).
 - Config'te `keep` çözümü (hedef `keep` > genel `keep`) henüz bir yardımcıya bağlanmadı; hedef şemasında `keep` isteğe bağlı kalır. Faz 2'de tek fonksiyonla çözülmeli.
