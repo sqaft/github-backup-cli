@@ -2,7 +2,27 @@
   "name": "github-backup-cli",
   "version": "0.1.0",
   "description": "Back up GitHub repositories (with wikis and LFS) to local disk and S3-compatible storage as git bundle snapshots.",
-  "private": true,
+  "keywords": [
+    "github",
+    "backup",
+    "git",
+    "git-bundle",
+    "git-lfs",
+    "wiki",
+    "s3",
+    "r2",
+    "cli"
+  ],
+  "homepage": "https://github.com/sqaft/github-backup-cli#readme",
+  "bugs": {
+    "url": "https://github.com/sqaft/github-backup-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sqaft/github-backup-cli.git"
+  },
+  "license": "MIT",
+  "author": "sqaft",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,13 +30,18 @@
   "bin": {
     "github-backup": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "config.example.json"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "dev": "tsx src/cli.ts",
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

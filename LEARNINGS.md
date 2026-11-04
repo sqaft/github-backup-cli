@@ -20,3 +20,12 @@
 
 ## 2026-11-04 — Renkli terminal satırı kesilmeden önce ölçülmeli
 İlerleme bloğu satırları terminal genişliğine sığdırılır; ANSI kodu içeren metni `slice` ile kesmek kaçış dizisini bölüp ekranı bozar ve görünür uzunluğu yanlış ölçer. Bu yüzden satırlar parçalar halinde kurulur, önce görünür genişliğe göre kesilir, sonra boyanır.
+
+## 2026-11-04 — `tsc` `dist/`'i temizlemez, silinen modül pakete girer
+`tsc` yalnızca çıktı yazar; kaynağı silinen dosya `dist/`'te kalır ve `files: ["dist"]` ile yayınlanır (`dist/commands/list.js` böyle kalmıştı). Bu yüzden `build` önce `dist/`'i siler ve `prepack` onu çalıştırır.
+
+## 2026-11-04 — npm trusted publishing kısıtları
+Trusted publisher npm'deki paket ayarlarından tanımlandığı için ilk yayın elle yapılır. `workflow_dispatch` ve reusable workflow'larda npm çağıran workflow'un dosya adını doğrular; bu yüzden `npm publish` adımı reusable bir workflow'da değil doğrudan `publish.yml` içindedir. Tanım yapıldıktan sonra 2 gün içinde başarılı yayın olmazsa süresi dolar; yalnızca `npm stage publish` varsayılan olarak açıktır, `npm publish` ayrıca işaretlenmelidir. `package.json`'daki `repository.url` GitHub reposuyla birebir eşleşmelidir.
+
+## 2026-11-04 — Commit üretmeden sürüm artırma
+npm aynı sürümü ikinci kez kabul etmez. Yayın workflow'u `npm view` ile son sürümü alıp `--no-git-tag-version` ile artırır; böylece repoya commit veya tag yazmadan sürüm ilerler ve kaynak npm olur.

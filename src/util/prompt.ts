@@ -73,16 +73,24 @@ export async function askChoice<T>(
   return (choices[Number(answer) - 1] as { value: T }).value;
 }
 
-/** Ctrl-C and Ctrl-D close the readline interface, which cancels the pending question. */
-export function createTerminalPrompter(): Prompter {
+/**
+ * Ctrl-C and Ctrl-D close the readline interface, which cancels the pending question and,
+ * when none is pending (during a target check), the next one.
+ */
+export function createTerminalPrompter(input: NodeJS.ReadableStream = process.stdin): Prompter {
   let muted = false;
+  let closed = false;
+  const cancelled = () => new CliError("setup cancelled; nothing was saved", ExitCode.Interrupted);
   const output = new Writable({
     write(chunk, encoding, done) {
       if (!muted) process.stderr.write(chunk, encoding);
       done();
     },
   });
-  const rl = createInterface({ input: process.stdin, output, terminal: true });
+  const rl = createInterface({ input, output, terminal: true });
+  rl.once("close", () => {
+    closed = true;
+  });
 
   return {
     say(line) {
@@ -91,10 +99,14 @@ export function createTerminalPrompter(): Prompter {
     ask(question, options = {}) {
       const hidden = options.hidden === true;
       return new Promise((resolve, reject) => {
+        if (closed) {
+          reject(cancelled());
+          return;
+        }
         const onClose = () => {
           muted = false;
           process.stderr.write("\n");
-          reject(new CliError("setup cancelled; nothing was saved", ExitCode.Interrupted));
+          reject(cancelled());
         };
         rl.once("close", onClose);
         if (hidden) process.stderr.write(question);

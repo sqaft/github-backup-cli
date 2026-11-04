@@ -5,7 +5,7 @@ A Node.js/TypeScript CLI (`github-backup`) that backs up every repository you ca
 The goal is an independent, restorable copy of your complete git history in case you lose a repository or your GitHub account.
 
 - Private, archived and forked repositories are included by default; narrow the set with glob filters.
-- Branches and repositories deleted on GitHub stay in the backup (mirrors never prune).
+- Repositories deleted on GitHub keep their snapshots, and deleted branches stay in new snapshots as long as the cache directory is kept (mirrors never prune). See [What a backup contains](#what-a-backup-contains) for the limits.
 - Runs once and exits: schedule it with cron or launchd.
 
 ## Requirements
@@ -18,17 +18,19 @@ The goal is an independent, restorable copy of your complete git history in case
 
 ## Install
 
-The tool is installed from the repository; it is not published to npm.
-
 ```sh
-git clone https://github.com/sqaft/github-backup-cli.git
-cd github-backup-cli
-npm ci
-npm run build
-npm link            # optional: puts `github-backup` on your PATH
+npm install -g github-backup-cli
 ```
 
-Without `npm link`, run `node dist/cli.js` instead of `github-backup`.
+Or run it without installing:
+
+```sh
+npx github-backup-cli backup --to ~/backups
+```
+
+The package is called `github-backup-cli` and the command it installs is `github-backup`. Without a global install, replace `github-backup` with `npx github-backup-cli` in the examples below: `npx github-backup` would run an unrelated npm package with that name.
+
+Scheduled backups need the global install. To update it, run `npm install -g github-backup-cli@latest`.
 
 ## Quick start
 
@@ -72,7 +74,7 @@ github-backup snapshots <owner/repo>   list a repository's snapshots on each tar
 | `--no-wiki` | `backup` | Skip wikis. |
 | `--no-lfs` | `backup`, `doctor` | Skip Git LFS objects (also skips the `git-lfs` check). |
 | `-t`, `--target <name>` | `backup`, `doctor`, `snapshots`, `setup` | Use only the configured target with this name. Repeatable. With `setup`, offers this name for the new target. |
-| `--to <path>` | `backup`, `doctor`, `snapshots` | Add a temporary local target named `local` at this directory. |
+| `--to <path>` | `backup`, `doctor`, `snapshots` | Add a temporary local target named `local` at this directory. With `--target` or `GHBACKUP_TARGETS` it is used only if they name `local`. |
 
 `--no-archived`, `--no-forks`, `--no-wiki` and `--no-lfs` override the environment and the config file only when you type them.
 
@@ -80,7 +82,7 @@ github-backup snapshots <owner/repo>   list a repository's snapshots on each tar
 
 ### Checking the setup
 
-`doctor` runs every check `backup` depends on without backing anything up, and reports all of them instead of stopping at the first problem. It writes nothing and does not list repositories. It exits with code 2 if a check failed.
+`doctor` runs every check `backup` depends on without backing anything up, and reports all of them instead of stopping at the first problem. It writes nothing and does not list repositories. It exits with code 2 if a check failed. A configuration error stops it before any check, also with code 2.
 
 ```text
 $ github-backup doctor
@@ -94,7 +96,7 @@ $ github-backup doctor
 
 ### Listing snapshots
 
-`snapshots <owner/repo>` shows what each target stores for one repository, newest first. Use `<owner/repo>.wiki` for a wiki. It reads only the targets, so it needs neither `gh` nor GitHub access and also finds repositories that were deleted on GitHub. It exits with code 1 if a target could not be read; the other targets are still shown.
+`snapshots <owner/repo>` shows what each target stores for one repository, newest first. Use `<owner/repo>.wiki` for a wiki. It reads only the targets, so it needs neither `gh` nor GitHub access and also finds repositories that were deleted on GitHub. It exits with code 1 if a target could not be read; the other targets are still shown. A target with invalid settings, such as only one of the two S3 keys, stops the command with code 2.
 
 ```text
 $ github-backup snapshots acme/app
@@ -106,7 +108,7 @@ r2      20261104T023000Z  184 MB  42
 3 snapshots
 ```
 
-Repository names are matched exactly, including upper and lower case. When nothing is found, a warning names the targets that were searched and the exit code stays 0.
+Repository names are matched exactly, including upper and lower case, on S3 and on case-sensitive file systems; a local target on a case-insensitive file system also finds other spellings. When nothing is found, a warning names the targets that were searched and the exit code stays 0.
 
 ### Progress
 
@@ -137,10 +139,10 @@ The block, log lines and summary use color on a terminal. `NO_COLOR` turns it of
 | Code | Meaning |
 | --- | --- |
 | `0` | Success (unchanged and skipped repositories count as success). |
-| `1` | At least one repository, wiki, target or repository owner failed; the others were still backed up. |
+| `1` | At least one repository, wiki, target or repository owner failed while the others were still backed up, or an unexpected error stopped the run. |
 | `2` | Configuration, flag or prerequisite error (missing tool, `gh` not signed in, bucket not reachable, no target), a missing command, or a failed `doctor` check. |
 | `3` | Another `backup` run is in progress (lock in the cache directory). |
-| `130` | Interrupted by SIGINT/SIGTERM (running git processes are stopped and the lock is released), or first-run setup was cancelled. |
+| `130` | A running `backup` was interrupted by SIGINT/SIGTERM (running git processes are stopped and the lock is released), or first-run setup was cancelled. |
 
 A lock file (`<cacheDir>/.lock`, containing the PID) prevents overlapping runs; a lock left by a dead process is taken over.
 
@@ -196,7 +198,7 @@ Settings come from, in order of priority: command-line flag, environment variabl
 }
 ```
 
-The schema is strict: an unknown field is an error, and the message names the field path (for example `targets.0.bucket`). Target names must be unique.
+The schema is strict: an unknown field is an error, and the message gives its location and name (for example `targets.0` and `"buckt"`). Target names must be unique.
 
 ### Top-level fields
 
@@ -224,7 +226,7 @@ Other environment variables: `GHBACKUP_CONFIG` (config file path, same as `--con
 | `archived` | `true` | `false` skips archived repositories. |
 | `forks` | `true` | `false` skips forks. |
 
-Globs match `owner/repo` case-insensitively: `*` and `?` do not cross `/`, `**` does, and a pattern without `/` matches nothing. So `acme/*` is every repository of `acme`, `*/*` is everything, and `*/legacy-*` is every repository whose name starts with `legacy-`. The flags and variables `--include`, `--exclude`, `--no-archived`, `--no-forks`, `GHBACKUP_INCLUDE` and `GHBACKUP_EXCLUDE` override these fields of every `github` source.
+Globs match `owner/repo` case-insensitively: `*` and `?` do not cross `/`, `**` does, and a pattern with neither `/` nor `**` matches nothing. So `acme/*` is every repository of `acme`, `*/*` is everything, and `*/legacy-*` is every repository whose name starts with `legacy-`. The flags and variables `--include`, `--exclude`, `--no-archived`, `--no-forks`, `GHBACKUP_INCLUDE` and `GHBACKUP_EXCLUDE` override these fields of every `github` source.
 
 The source lists your own repositories plus those of every organization you are a member of. Repositories of other users that you merely collaborate on are not included. If an organization's repositories cannot be listed (for example SSO is not authorized), a warning is printed, the other owners are backed up, and the exit code is 1.
 
@@ -266,7 +268,7 @@ Any S3-compatible service works (AWS S3, Cloudflare R2, Backblaze B2, MinIO, ...
 | `endpoint` | Service URL; leave out for AWS S3. |
 | `region` | Default `us-east-1`; R2 uses `auto`. |
 | `forcePathStyle` | Use `https://host/bucket/key` instead of `https://bucket.host/key` (MinIO and some self-hosted services need it). Default `false`. |
-| `accessKeyId`, `secretAccessKey` | Static credentials. If both are left out, `GHBACKUP_S3_ACCESS_KEY_ID` and `GHBACKUP_S3_SECRET_ACCESS_KEY` are used, and then the AWS SDK's default chain (environment, shared credentials file, instance role). Setting only one of the two is an error. |
+| `accessKeyId`, `secretAccessKey` | Static credentials. A field that is left out falls back to `GHBACKUP_S3_ACCESS_KEY_ID` or `GHBACKUP_S3_SECRET_ACCESS_KEY`. If neither is set after that, the AWS SDK's default chain is used (environment, shared credentials file, instance role); ending up with only one of the two is an error. |
 | `keep` | Snapshots kept per repository on this target; overrides the global `keep` and `--keep`. |
 
 Provider settings:
@@ -290,7 +292,9 @@ Objects are uploaded as streaming multipart uploads, so large bundles are not he
 - The wiki repository of every repository that has one (a separate unit named `<repo>.wiki`).
 - Git LFS objects: every snapshot of a repository that uses LFS gets a `<stamp>.lfs.tar` with all LFS objects of the mirror.
 
-Mirrors in the cache directory are only ever fetched into, never pruned, so branches and repositories deleted on GitHub stay in the backup. Each bundle contains the whole repository, not just the changes since the previous snapshot.
+Mirrors in the cache directory are only ever fetched into, never pruned, so branches deleted on GitHub stay in the mirror and in new snapshots. A repository deleted on GitHub is no longer listed, so its snapshots stay on the targets untouched. Each bundle contains the whole repository, not just the changes since the previous snapshot.
+
+Two cases are not protected beyond `keep`. A force-push overwrites the branch in the mirror, so the old commits exist only in older snapshots until retention removes them. If the cache directory is lost, the next run mirrors GitHub's current state, so branches already deleted there exist only in older snapshots too. Raise `keep` if you need a longer window.
 
 ## Snapshot layout
 
@@ -303,18 +307,18 @@ Mirrors in the cache directory are only ever fetched into, never pruned, so bran
 
 `<root>` is the target's `path`, or `s3://<bucket>/<prefix>` for S3 targets; both use the same layout. `<source>` is `github`. `<stamp>` is the UTC time as `YYYYMMDDTHHMMSSZ`.
 
-The manifest is JSON: `version`, `source`, `fullName`, `stamp`, `refsHash` (SHA-256 of the sorted `<sha> <ref>` list), `refs` (name and SHA of every ref), `bundleBytes`, `lfsTarBytes` (if any) and `tool` (name and version). A snapshot without its `.json` manifest is incomplete: it is not counted, and it is removed on the next run.
+The manifest is JSON: `version`, `source`, `fullName`, `stamp`, `refsHash` (SHA-256 of the sorted `<sha> <ref>` list), `refs` (name and SHA of every ref), `bundleBytes`, `lfsTarBytes` (if any) and `tool` (name and version). A snapshot without its `.json` manifest is incomplete: it is not counted, and it is removed the next time a snapshot of that repository is written to that target.
 
 A new snapshot is written to a target only when the repository's `refsHash` differs from the newest manifest on that target, so unchanged repositories take no extra space. After writing, each target keeps the newest `keep` snapshots per repository (bundle, LFS tar and manifest are deleted together).
 
 ## Scheduling
 
-`github-backup` runs once and exits; use your system scheduler. Make sure `gh`, `git` and `git-lfs` are on the scheduler's `PATH` and that `gh` is signed in for the same user.
+`github-backup` runs once and exits; use your system scheduler. Make sure `node`, `gh`, `git` and `git-lfs` are on the scheduler's `PATH` and that `gh` is signed in for the same user.
 
 ### cron
 
 ```cron
-# Every day at 02:30; log lines go to a file, exit code 1/2/3 shows up in the log.
+# Every day at 02:30; log lines and errors go to a file.
 30 2 * * * PATH=/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin github-backup backup --quiet >> "$HOME/github-backup.log" 2>&1
 ```
 
@@ -355,7 +359,7 @@ Save as `~/Library/LaunchAgents/com.example.github-backup.plist`, then run `laun
 </plist>
 ```
 
-Use the path printed by `which github-backup` (or `node` with the full path to `dist/cli.js`).
+Use the path printed by `which github-backup`. If Node.js comes from a version manager such as nvm, add the directory of `which node` to `PATH` here and in the cron line above.
 
 ## Restoring
 
@@ -377,7 +381,7 @@ tar -xf 20260101T020000Z.lfs.tar -C restored/.git     # lfs/objects/... lands in
 cd restored && git lfs install --local && git lfs checkout
 ```
 
-To push a restored repository to a new remote, add the remote and push the refs you need (`git push --mirror <url>` for a mirror clone; for LFS repositories also `git lfs push --all <url>`).
+To push a restored repository to a new remote, add the remote and push the refs you need (`git push --mirror <url>` for a mirror clone). For an LFS repository also run `git lfs push --all <url>`; in a mirror clone, first unpack the tar with `-C app.git`, because it has no `.git` directory.
 
 ## Limitations
 
@@ -385,18 +389,22 @@ To push a restored repository to a new remote, add the remote and push the refs 
 - Only github.com; GitHub Enterprise is not supported.
 - Only your own repositories and those of organizations you belong to.
 - `refs/pull/*` is not backed up.
-- Nothing is ever deleted from the backup because it disappeared on GitHub; only old snapshots beyond `keep` are removed.
+- Snapshots are never deleted because something disappeared on GitHub; only old snapshots beyond `keep` are removed.
 - No built-in scheduler and no `restore` command.
 - Linux and macOS only.
 
 ## Development
 
 ```sh
+git clone https://github.com/sqaft/github-backup-cli.git
+cd github-backup-cli
 npm ci
-npm run lint        # Biome
-npm run typecheck   # tsc --noEmit
-npm test            # Vitest
-npm run build       # tsc -> dist/
+npm run dev -- doctor   # run from source
+npm run lint            # Biome
+npm run typecheck       # tsc --noEmit
+npm test                # Vitest
+npm run build           # tsc -> dist/
+npm link                # optional: puts your build on PATH as `github-backup`
 ```
 
 S3 integration tests run only when `GHBACKUP_TEST_S3_ENDPOINT` (plus `GHBACKUP_TEST_S3_ACCESS_KEY_ID` and `GHBACKUP_TEST_S3_SECRET_ACCESS_KEY`) point at an S3-compatible server; CI starts S3Proxy for this. LFS tests need `git-lfs` and are skipped without it.

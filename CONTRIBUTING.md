@@ -3,7 +3,10 @@
 ## Setup and checks
 
 ```sh
+git clone https://github.com/sqaft/github-backup-cli.git
+cd github-backup-cli
 npm ci
+npm run dev -- --help   # run from source
 npm run lint        # Biome (npm run format fixes formatting)
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest: unit tests and integration tests with real temporary git repositories
@@ -33,7 +36,7 @@ A source is a git service the backup reads repositories from (the first one is `
    - `checkPrerequisites()`: throw `PrerequisiteError` when a tool or login is missing.
    - `listRepos()`: return `{ repos, failures }`. An owner that cannot be listed goes into `failures`; do not throw for it.
    - `gitEnv()`: environment for git child processes (credential helper, `GIT_TERMINAL_PROMPT=0`).
-2. Add a `type` branch to `sourceSchema` in `src/config/schema.ts` (a strict object with the source's own filters). `load.ts` applies flag and environment overrides to `github` sources only; extend `applyOverrides` if the new source should honor them too.
+2. Add a `type` branch to `sourceSchema` in `src/config/schema.ts` (a strict object; `filterRepos` needs `include`, `exclude`, `archived` and `forks`). `load.ts` applies flag and environment overrides to `github` sources only; extend `applyOverrides` if the new source should honor them too.
 3. Register it in `createSource` in `src/sources/index.ts`.
 4. Add tests (parsing of the service's output with a fake `exec`, as `test/unit/github-source.test.ts` does) and update `config.example.json` and the README.
 
@@ -45,7 +48,7 @@ A target is a storage that receives snapshots (`local` and `s3` exist).
    - `putSnapshot` writes the bundle and LFS tar first and the manifest last; a snapshot without its manifest is incomplete. Files must not appear under their final name before they are complete.
    - `putSnapshot` calls `onPercent` with the share of bytes stored so far when the storage can tell; without it the progress block shows only the step name.
    - `listSnapshots` returns only snapshots that have a manifest, oldest first.
-   - `readManifest` returns the manifest of one snapshot, or null when it is missing or unreadable.
+   - `readManifest` returns the manifest of one snapshot, or null when it is missing or not valid JSON. Storage errors are thrown.
    - `deleteSnapshot` removes the manifest first.
    - `cleanupIncomplete` removes leftovers that have no manifest.
    - `checkAccess` (optional) fails early with a readable reason when the storage is unreachable. It must not change the storage; `doctor` runs it too.

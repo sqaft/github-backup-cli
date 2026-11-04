@@ -1,0 +1,45 @@
+name: Publish
+
+# Run by hand from the Actions tab. No commit or tag is created: the next version is
+# derived from the latest one on npm, which is the source of truth for releases.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Part of the published version to increase
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm ci
+      - name: Set the next version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          npm version "$(npm view github-backup-cli version)" --no-git-tag-version --allow-same-version
+          npm version "$BUMP" --no-git-tag-version
+      - run: npm publish
