@@ -19,8 +19,8 @@ All four must pass before a change is merged; CI runs them on Node 22 and 24. Yo
 - Never change the user's global git config. Authentication for git child processes goes through the environment returned by `Source.gitEnv()`.
 - Never log tokens or access keys, and keep them out of error messages. Register secrets with the logger (`log.addSecret`) and strip credentials from URLs in messages.
 - New behavior comes with tests. Test git operations against real temporary repositories (`test/helpers/git.ts`: `TestRemote`, `fakeSource`, `isolatedExec`), and pure logic with table-driven unit tests.
-- Code, comments, the README and commit messages are in English. `plans/` is in Turkish.
-- The configuration schema is strict. When you change it, update `config.example.json`, the configuration reference in `README.md` and the Configuration section of `plans/mimari.md` in the same change. The same goes for flags and environment variables (`src/program.ts`, `src/config/load.ts`, README, `plans/mimari.md`).
+- Code, comments, the README and commit messages are in English.
+- The configuration schema is strict. When you change it, update `config.example.json` and the configuration reference in `README.md` in the same change. The same goes for flags and environment variables (`src/program.ts`, `src/config/load.ts`, README).
 
 ## Adding a source
 
@@ -33,7 +33,7 @@ A source is a git service the backup reads repositories from (the first one is `
    - `gitEnv()`: environment for git child processes (credential helper, `GIT_TERMINAL_PROMPT=0`).
 2. Add a `type` branch to `sourceSchema` in `src/config/schema.ts` (a strict object with the source's own filters). `load.ts` applies flag and environment overrides to `github` sources only; extend `applyOverrides` if the new source should honor them too.
 3. Register it in `createSource` in `src/sources/index.ts`.
-4. Add tests (parsing of the service's output with a fake `exec`, as `test/unit/github-source.test.ts` does) and update `config.example.json`, the README and `plans/mimari.md`.
+4. Add tests (parsing of the service's output with a fake `exec`, as `test/unit/github-source.test.ts` does) and update `config.example.json` and the README.
 
 ## Adding a target
 
@@ -48,7 +48,7 @@ A target is a storage that receives snapshots (`local` and `s3` exist).
 2. Add a `type` branch to `targetSchema` in `src/config/schema.ts` (strict object with `name`, an optional `keep` and the type's own fields). If a field needs expansion or a credential fallback, handle it in `resolveTarget` or the credential step of `loadConfig` in `src/config/load.ts`.
 3. Register it in `createTarget` in `src/targets/index.ts`, and add its first-run questions: export a `TargetSetup` (from `src/targets/types.ts`) and list it in `TARGET_SETUPS`. `prompt` returns the raw target; `src/commands/setup.ts` validates it, runs `checkAccess` and writes the file. Ask through `askText`, `askYesNo` and `askChoice` from `src/util/prompt.ts`, and pass `hidden: true` for secrets.
 4. Add unit tests with a fake client and integration tests against a real service or a local stand-in, in the style of `test/integration/local-target.test.ts` and `test/integration/s3-target.test.ts`, and cover the questions in `test/unit/setup.test.ts`.
-5. Update `config.example.json`, the README (target reference and snapshot layout), `plans/mimari.md` and, if the layout or manifest changes, `src/core/snapshot.ts`.
+5. Update `config.example.json`, the README (target reference and snapshot layout) and, if the layout or manifest changes, `src/core/snapshot.ts`.
 
 ## Commits and pull requests
 

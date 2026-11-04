@@ -31,7 +31,7 @@ function readPid(file: string): number | undefined {
 
 /**
  * Takes the run lock (`<cacheDir>/.lock` holding our PID). A lock whose PID is gone is taken
- * over; a live one ends the run with exit code 3 (K-027). The PID file is created complete
+ * over; a live one ends the run with exit code 3. The PID file is created complete
  * via a hard link, so a concurrent reader never sees a half-written lock.
  */
 export function acquireLock(file: string, options: LockOptions = {}): Lock {

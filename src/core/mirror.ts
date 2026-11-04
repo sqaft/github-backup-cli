@@ -21,7 +21,7 @@ async function initMirror(git: Git, input: MirrorInput): Promise<void> {
   await git(["init", "--bare", input.mirrorDir]);
   const inRepo = { cwd: input.mirrorDir };
   await git(["remote", "add", "origin", input.url], inRepo);
-  // Only branches and tags: refs/pull/* is never fetched, and nothing is pruned (K-008, K-028).
+  // Only branches and tags: refs/pull/* is never fetched, and nothing is pruned.
   await git(
     ["config", "--replace-all", "remote.origin.fetch", FETCH_REFSPECS[0] as string],
     inRepo,

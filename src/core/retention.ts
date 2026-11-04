@@ -1,6 +1,6 @@
 import type { Target } from "../targets/types.js";
 
-/** Hedef `keep` > genel `keep` (K-009). */
+/** A target's own `keep` wins over the global `keep`. */
 export function resolveKeep(targetKeep: number | undefined, globalKeep: number): number {
   return targetKeep ?? globalKeep;
 }

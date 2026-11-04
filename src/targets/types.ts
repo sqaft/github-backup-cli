@@ -5,7 +5,7 @@ export interface RefEntry {
   sha: string;
 }
 
-/** Written last for every snapshot; its presence marks the snapshot as complete (K-009). */
+/** Written last for every snapshot; its presence marks the snapshot as complete. */
 export interface Manifest {
   version: 1;
   source: string;

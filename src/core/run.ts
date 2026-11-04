@@ -63,7 +63,7 @@ export interface BackupContext {
   signal?: AbortSignal;
   now?: () => Date;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
-  /** Waits before the retries of a failed step (K-020). */
+  /** Waits before the retries of a failed step. */
   retryDelaysMs?: readonly number[];
 }
 

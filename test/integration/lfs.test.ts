@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { extract } from "tar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -92,10 +92,12 @@ describe.skipIf(!hasGitLfs())("backup with Git LFS", () => {
     const manifest = JSON.parse(readFileSync(byExt(".json"), "utf8")) as Manifest;
     expect(manifest.lfsTarBytes).toBe(statSync(byExt(".lfs.tar")).size);
 
-    // Restore as documented: clone the bundle, unpack the tar into .git, check out LFS files.
+    // Restore as documented, with the global LFS filter `git lfs install` sets up on a real machine.
     const clone = path.join(root, "restored");
     const exec = isolatedExec(home);
-    await exec("git", ["clone", byExt(".bundle"), clone]);
+    mkdirSync(home, { recursive: true });
+    await exec("git", ["lfs", "install", "--skip-repo"]);
+    await exec("git", ["clone", byExt(".bundle"), clone], { env: { GIT_LFS_SKIP_SMUDGE: "1" } });
     await extract({ file: byExt(".lfs.tar"), cwd: path.join(clone, ".git") });
     await exec("git", ["lfs", "install", "--local"], { cwd: clone });
     await exec("git", ["lfs", "checkout"], { cwd: clone });
@@ -141,7 +143,7 @@ describe.skipIf(!hasGitLfs())("backup with Git LFS", () => {
     remote.commit("big.bin", `changed ${"y".repeat(4000)}`);
     expect(await backup()).toBe(0);
     expect(lfsFetches).toHaveLength(2);
-    // The second snapshot carries all LFS objects, old and new (K-018: self-contained snapshots).
+    // The second snapshot carries all LFS objects, old and new (self-contained snapshots).
     const tars = list("test/o/a").filter((f) => f.endsWith(".lfs.tar"));
     expect(tars).toHaveLength(2);
     const sizes = tars.map((f) => statSync(path.join(snapshotDir("test/o/a"), f)).size);

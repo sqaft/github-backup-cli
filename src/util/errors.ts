@@ -1,4 +1,4 @@
-/** Process exit codes shared by all commands (K-020). */
+/** Process exit codes shared by all commands. */
 export const ExitCode = {
   Success: 0,
   PartialFailure: 1,

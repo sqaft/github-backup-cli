@@ -2,7 +2,7 @@
 
 A Node.js/TypeScript CLI (`github-backup`) that backs up every repository you can reach through the GitHub CLI (`gh`): your personal repositories and those of all organizations you belong to, including wikis and Git LFS objects. Backups go to a local directory and/or any S3-compatible bucket (AWS S3, Cloudflare R2, Backblaze B2, MinIO) as git bundle snapshots. A new snapshot is created only when branches or tags changed, and each target keeps the newest N snapshots per repository.
 
-The goal is an independent, restorable copy of your complete git history in case you lose a repository or your GitHub account. The project plan (in Turkish) lives in [plans/README.md](plans/README.md).
+The goal is an independent, restorable copy of your complete git history in case you lose a repository or your GitHub account.
 
 - Private, archived and forked repositories are included by default; narrow the set with glob filters.
 - Branches and repositories deleted on GitHub stay in the backup (mirrors never prune).
@@ -306,10 +306,10 @@ git clone ~/git-backup/github/acme/app/20260101T020000Z.bundle app
 
 To get every branch and tag as local refs instead, use `git clone --mirror <bundle> app.git`. A wiki is restored the same way from `<repo>.wiki/<stamp>.bundle`.
 
-If the snapshot has an `.lfs.tar`, unpack it into the clone's `.git` directory and check the LFS files out:
+If the snapshot has an `.lfs.tar`, clone with `GIT_LFS_SKIP_SMUDGE=1` (a bundle has no LFS server, so a plain clone fails at checkout), unpack the tar into the clone's `.git` directory and check the LFS files out:
 
 ```sh
-git clone 20260101T020000Z.bundle restored
+GIT_LFS_SKIP_SMUDGE=1 git clone 20260101T020000Z.bundle restored
 tar -xf 20260101T020000Z.lfs.tar -C restored/.git     # lfs/objects/... lands in .git/lfs/objects
 cd restored && git lfs install --local && git lfs checkout
 ```
@@ -338,4 +338,4 @@ npm run build       # tsc -> dist/
 
 S3 integration tests run only when `GHBACKUP_TEST_S3_ENDPOINT` (plus `GHBACKUP_TEST_S3_ACCESS_KEY_ID` and `GHBACKUP_TEST_S3_SECRET_ACCESS_KEY`) point at an S3-compatible server; CI starts S3Proxy for this. LFS tests need `git-lfs` and are skipped without it.
 
-To add a new source (another git service) or target (another storage), see [CONTRIBUTING.md](CONTRIBUTING.md). Architecture and decisions are in [plans/mimari.md](plans/mimari.md) and [plans/kararlar.md](plans/kararlar.md) (Turkish).
+To add a new source (another git service) or target (another storage), see [CONTRIBUTING.md](CONTRIBUTING.md).
