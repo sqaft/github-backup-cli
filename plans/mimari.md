@@ -26,6 +26,7 @@ src/
     context.ts           # CommandDeps (exec, env, stdout/stderr), config + logger hazırlığı
     list.ts
     backup.ts
+    setup.ts             # config dosyası yoksa hedefleri sorar, dener ve dosyayı yazar
   config/
     schema.ts            # zod şeması ve varsayılanlar
     load.ts              # dosya + env + bayrak birleştirme
@@ -51,6 +52,7 @@ src/
     exec.ts              # child_process sarmalayıcısı (timeout, stderr yakalama)
     log.ts               # stderr logger (normal/verbose/quiet)
     filter.ts            # glob eşleştirme
+    prompt.ts            # terminal soruları (Prompter, askText, askYesNo, askChoice)
     time.ts              # snapshot zaman damgası, sleep
     async.ts             # withRetry, runPool
     tool.ts              # package.json'dan araç adı ve sürümü
@@ -75,6 +77,7 @@ test/
   - `deleteSnapshot(repoKey, stamp)`: bundle, lfs.tar ve manifest silinir (manifest ilk).
   - `cleanupIncomplete(repoKey)`: manifest'i olmayan yarım dosyaları ve `.partial` dosyalarını siler.
   - `checkAccess?()`: isteğe bağlı; depolamaya erişilemiyorsa okunabilir bir nedenle hata fırlatır (`s3`: `HeadBucket`). `backup` bunu kilitten önce çağırır.
+- `TargetSetup` arayüzü (`label`, `defaultName`, `prompt(prompter, name)`): hedef türünün ilk kurulum soruları. Her tür kendi dosyasında tanımlar, `targets/index.ts` içindeki `TARGET_SETUPS` listesi kaydeder. `s3` sağlayıcıya göre (`R2`, `AWS`, `B2`, diğer) bağlantı ayarlarını türetir.
 - `repoKey` = `<source.id>/<owner>/<repo>` (wiki için `<source.id>/<owner>/<repo>.wiki`).
 - Kaynak türü → uygulama eşlemesi `sources/index.ts` içindeki `createSource` fonksiyonundadır; `core/discover.ts` her kaynak yapılandırması için ön koşulları kontrol eder, listeler ve o kaynağın filtrelerini uygular.
 - Dış komut çağıran modüller `Exec` fonksiyon tipini (`util/exec.ts`) bağımlılık olarak alır; testlerde sahte `exec` verilir. Komutlar `CommandDeps` ile `exec`, `env`, `stdout`, `stderr` alır.
@@ -150,6 +153,8 @@ Ortak düzen (her iki hedefte aynı):
 
 Config dosyası: varsayılan `~/.config/github-backup-cli/config.json` (`XDG_CONFIG_HOME` varsa ona göre), `--config <path>` veya `GHBACKUP_CONFIG` ile değişir. Dosya yoksa ve bayraklar yeterliyse sorun değildir. Repoda `config.example.json` bulunur.
 
+İlk kurulum (K-038): `backup` başında `setupMissingConfig` çalışır. `CommandDeps.createPrompter` varsa (stdin ve stderr TTY), `--local` verilmemişse ve çözülen config yolunda dosya yoksa hedefleri sorar. Her hedef şemadan geçirilir ve `checkAccess` ile denenir; başarısızsa neden gösterilir ve yeniden sorulur. Dosya yalnızca `targets` içerir, `0600` izinle (`wx`, var olanın üzerine yazmaz) yazılır; dizin `0700` ile oluşturulur. Prompter yoksa soru sorulmaz, hedef hataları eksik dosyanın yolunu söyler ve çıkış 2 olur. Ctrl-C veya vazgeçme çıkış 130 verir ve dosya yazılmaz. Sorular stderr'e yazılır, stdout `--json` için temiz kalır.
+
 ```json
 {
   "cacheDir": "~/.cache/github-backup-cli",
@@ -216,7 +221,7 @@ Bayraklar (her iki komutta ortak olanlar dahil):
 
 ## Test
 
-- Birim (Vitest): config birleştirme ve öncelik, şema hataları, glob filtre, zaman damgası, ref özeti, saklama seçimi, `gh` çıktısının ayrıştırılması (sahte `exec` ile).
+- Birim (Vitest): config birleştirme ve öncelik, şema hataları, glob filtre, zaman damgası, ref özeti, saklama seçimi, `gh` çıktısının ayrıştırılması (sahte `exec` ile), ilk kurulum akışı (`test/unit/setup.test.ts`, sahte `Prompter` ile).
 - Entegrasyon (Vitest): geçici dizinde `git init --bare` ile "uzak" repolar; `file://` URL'leri döndüren test kaynağı; mirror → bundle → `local` hedef → `git clone <bundle>` ile geri yükleme doğrulaması; değişmeyen repo için yeni snapshot oluşmaması; saklama.
 - LFS entegrasyon (`test/integration/lfs.test.ts`, `git-lfs` yoksa atlanır): LFS sunucusu gerekmez. Test reposu `lfs.url=file://<bare repo>` ve `lfs.standalonetransferagent=lfs-standalone-file` (git-lfs'in yerleşik dosya aktarımı) ile yapılandırılır; mirror aynı ayarları `GIT_CONFIG_*` env'iyle (kaynağın `gitEnv()`'i) alır. Standalone ajan URL'nin bir git dizini olmasını ve dizinin var olmasını ister, nesneleri `<dizin>/lfs/objects` altına yazar. Test bundle'dan klonlar, tar'ı klonun `.git/` dizinine açar, `git lfs checkout` yapar ve sha256'yı karşılaştırır.
 - S3 entegrasyon: `GHBACKUP_TEST_S3_ENDPOINT` (+ `GHBACKUP_TEST_S3_ACCESS_KEY_ID`, `GHBACKUP_TEST_S3_SECRET_ACCESS_KEY`, isteğe bağlı `GHBACKUP_TEST_S3_BUCKET`) tanımlıysa herhangi bir S3 uyumlu sunucuya karşı çalışır, değilse atlanır. CI'da `andrewgaul/s3proxy` (S3Proxy, filesystem backend) servis container'ı ile çalışır; kimlik `test-access`/`test-secret`, workflow'da sabit. Yerelde aynı sunucu Maven Central'daki `org.gaul:s3proxy` jar'ıyla (`java -jar s3proxy-<sürüm>-jar-with-dependencies.jar --properties s3proxy.conf`) başlatılabilir. Birim testleri (`test/unit/s3-target.test.ts`) sahte bir istemciyle sayfalama, 1000'lik silme grupları ve hata maskelemeyi sunucusuz doğrular.

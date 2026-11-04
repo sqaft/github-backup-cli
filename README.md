@@ -40,6 +40,8 @@ github-backup backup --local ~/backups          # run again: unchanged repositor
 
 The first run mirrors every repository into the cache directory (`~/.cache/github-backup-cli`) and writes one snapshot per repository. Later runs fetch only what changed.
 
+To keep your targets in a config file, run `github-backup backup` without `--local`: when the config file is missing, it asks where backups should go, saves the file and continues (see [First-run setup](#first-run-setup)).
+
 ## Commands
 
 ```text
@@ -67,7 +69,7 @@ github-backup backup [options]
 
 `--no-archived`, `--no-forks`, `--no-wiki` and `--no-lfs` override the environment and the config file only when you type them.
 
-`list` prints a table (`REPO`, `ARCHIVED`, `FORK`, `WIKI`, `EMPTY`) and a total. `backup` writes log lines to stderr, a summary at the end, and with `--json` a machine-readable summary to stdout. Without any target (`--local`, `--target` or a configured one) `backup` exits with code 2.
+`list` prints a table (`REPO`, `ARCHIVED`, `FORK`, `WIKI`, `EMPTY`) and a total. `backup` writes log lines to stderr, a summary at the end, and with `--json` a machine-readable summary to stdout. Without any target (`--local` or a configured one) `backup` exits with code 2, unless [first-run setup](#first-run-setup) can ask for one.
 
 ### Exit codes
 
@@ -77,9 +79,21 @@ github-backup backup [options]
 | `1` | At least one repository, wiki, target or repository owner failed; the others were still backed up. |
 | `2` | Configuration, flag or prerequisite error (missing tool, `gh` not signed in, bucket not reachable, no target). |
 | `3` | Another `backup` run is in progress (lock in the cache directory). |
-| `130` | Interrupted by SIGINT/SIGTERM; running git processes are stopped and the lock is released. |
+| `130` | Interrupted by SIGINT/SIGTERM (running git processes are stopped and the lock is released), or first-run setup was cancelled. |
 
 A lock file (`<cacheDir>/.lock`, containing the PID) prevents overlapping runs; a lock left by a dead process is taken over.
+
+## First-run setup
+
+When `backup` runs at a terminal without `--local` and the config file does not exist, it asks for one or more targets instead of failing:
+
+- The storage: an S3-compatible bucket (Cloudflare R2, AWS S3, Backblaze B2 or another service) or a local directory.
+- The target name, offering the `--target` value if you passed one.
+- For S3: the provider's connection details, the bucket, a key prefix (default `git`) and the access keys. The secret access key is not shown while you type.
+
+Every S3 target is checked with the same bucket check `backup` uses; if it fails, you see the reason and can enter the settings again. The answers are saved to the config file path (`--config`, `GHBACKUP_CONFIG` or the default) with mode `600`, and the backup continues in the same run. Ctrl-C saves nothing and exits with code 130.
+
+Setup writes only `targets`; everything else keeps its default until you edit the file. It runs only when both stdin and stderr are terminals, so cron and launchd jobs never wait for an answer: they exit with code 2 and the error names the missing config file. An existing config file is never changed, and `list` and `backup --local <path>` do not ask.
 
 ## Configuration
 
@@ -203,7 +217,7 @@ Provider settings:
 
 The key needs `s3:ListBucket` (also used by the start-up bucket check), `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject`; to clean up multipart uploads that were interrupted, also `s3:ListBucketMultipartUploads` and `s3:AbortMultipartUpload` (without them the cleanup is skipped). Restrict the key to this one bucket.
 
-Before any work starts, `backup` checks every S3 target with a `HeadBucket` request. If the bucket is missing or the credentials are rejected, it prints the target name and the reason (with keys masked) and exits with code 2. Credentials in the config file are readable by anyone who can read that file: `chmod 600` it (a warning is printed otherwise).
+Before any work starts, `backup` checks every S3 target with a `HeadBucket` request. If the bucket is missing or the credentials are rejected, it prints the target name and the reason (with keys masked) and exits with code 2. Credentials in the config file are readable by anyone who can read that file: `chmod 600` it (a warning is printed otherwise; first-run setup already does this).
 
 Objects are uploaded as streaming multipart uploads, so large bundles are not held in memory, and an object appears only when its upload completes. The manifest is uploaded last.
 

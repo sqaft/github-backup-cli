@@ -1,9 +1,12 @@
 import type { TargetConfig } from "../config/schema.js";
-import { createLocalTarget } from "./local.js";
-import { createS3Target } from "./s3.js";
-import type { Target } from "./types.js";
+import { createLocalTarget, localTargetSetup } from "./local.js";
+import { createS3Target, s3TargetSetup } from "./s3.js";
+import type { Target, TargetSetup } from "./types.js";
 
-export type { Manifest, SnapshotFiles, Target } from "./types.js";
+export type { Manifest, SnapshotFiles, Target, TargetSetup } from "./types.js";
+
+/** Target types offered when `backup` creates a config file; the first is the default. */
+export const TARGET_SETUPS: readonly TargetSetup[] = [s3TargetSetup, localTargetSetup];
 
 /** Registry: maps a configured target `type` to its implementation. */
 export function createTarget(config: TargetConfig, options: { keep: number }): Target {

@@ -34,6 +34,8 @@ export interface LoadedConfig {
   config: Config;
   /** Absolute path of the config file that was read, if any. */
   configPath?: string;
+  /** Absolute path that was looked at when no config file exists there. */
+  missingConfigPath?: string;
   warnings: string[];
   /** Credential values that must be masked in logs. */
   secrets: string[];
@@ -127,6 +129,11 @@ export function mergeOverrides(env: Overrides, flags: Overrides): Overrides {
   return { ...env, ...flags };
 }
 
+/** Overrides from the environment and flags together. */
+export function resolveOverrides(input: LoadInput): Overrides {
+  return mergeOverrides(overridesFromEnv(input.env), overridesFromFlags(input.flags));
+}
+
 export function defaultConfigPath(env: LoadInput["env"], home: string): string {
   const xdg = env.XDG_CONFIG_HOME;
   const base = xdg ? xdg : path.join(home, ".config");
@@ -154,6 +161,21 @@ export function expandPath(
   const withHome =
     withVars === "~" || withVars.startsWith("~/") ? home + withVars.slice(1) : withVars;
   return path.resolve(cwd, withHome);
+}
+
+/** Absolute path of the config file, whether it exists or not. */
+export function resolveConfigPath(input: LoadInput, overrides: Overrides): string {
+  const home = input.homeDir ?? homedir();
+  const cwd = input.cwd ?? process.cwd();
+  return overrides.config === undefined
+    ? defaultConfigPath(input.env, home)
+    : expandPath(overrides.config, input.env, home, cwd);
+}
+
+/** Tells the reader of a target error why no targets exist. */
+export function missingConfigHint(file: string | undefined): string {
+  if (file === undefined) return "";
+  return `; no config file at ${file} (run backup in a terminal to create it)`;
 }
 
 type RawConfig = Record<string, unknown>;
@@ -234,13 +256,11 @@ export function loadConfig(input: LoadInput): LoadedConfig {
   const env = input.env;
   const warnings: string[] = [];
 
-  const overrides = mergeOverrides(overridesFromEnv(env), overridesFromFlags(input.flags));
+  const overrides = resolveOverrides(input);
 
-  const explicit = overrides.config !== undefined;
-  const configPath = explicit
-    ? expandPath(overrides.config as string, env, home, cwd)
-    : defaultConfigPath(env, home);
-  const raw = readConfigFile(configPath, explicit);
+  const configPath = resolveConfigPath(input, overrides);
+  const raw = readConfigFile(configPath, overrides.config !== undefined);
+  const missingConfigPath = raw ? undefined : configPath;
 
   if (raw && fileHasS3Keys(raw)) {
     try {
@@ -281,7 +301,8 @@ export function loadConfig(input: LoadInput): LoadedConfig {
     if (unknown.length > 0) {
       const available = [...known].join(", ") || "none configured";
       throw new ConfigError(
-        `unknown target ${unknown.map((n) => `"${n}"`).join(", ")} (available: ${available})`,
+        `unknown target ${unknown.map((n) => `"${n}"`).join(", ")} (available: ${available})` +
+          missingConfigHint(missingConfigPath),
       );
     }
     config.targets = config.targets.filter((t) => overrides.target?.includes(t.name));
@@ -296,7 +317,13 @@ export function loadConfig(input: LoadInput): LoadedConfig {
     if (target.secretAccessKey) secrets.push(target.secretAccessKey);
   }
 
-  return { config, configPath: raw ? configPath : undefined, warnings, secrets };
+  return {
+    config,
+    configPath: raw ? configPath : undefined,
+    missingConfigPath,
+    warnings,
+    secrets,
+  };
 }
 
 function resolveTarget(

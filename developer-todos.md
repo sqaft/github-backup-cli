@@ -23,7 +23,7 @@ Sıradaki fazı engelleyen işler.
 
 ### Faz 3 — `s3` hedefi
 
-- [ ] 👤 S3 uyumlu servisi seç, bucket oluştur, yalnızca o bucket'a yetkili (`s3:ListBucket`, `GetObject`, `PutObject`, `DeleteObject`, isteğe bağlı `ListBucketMultipartUploads`/`AbortMultipartUpload`) erişim anahtarı üret ve config'ine ekle (`chmod 600`).
+- [ ] 👤 S3 uyumlu servisi seç, bucket oluştur, yalnızca o bucket'a yetkili (`s3:ListBucket`, `GetObject`, `PutObject`, `DeleteObject`, isteğe bağlı `ListBucketMultipartUploads`/`AbortMultipartUpload`) erişim anahtarı üret. Config dosyası yoksa `backup` bu bilgileri terminalde sorar ve dosyayı kendisi yazar.
 - [ ] 💻 Gerçek bucket'a `node dist/cli.js backup --target <s3-adın> --include '<kendi-kullanıcın>/*'` çalıştır, bir bundle'ı indirip `git clone <bundle> /tmp/x` ile doğrula; komutu tekrarlayınca özetin `unchanged` göstermesini kontrol et: gerçek bucket ve `gh` oturumu gerekir, bulutta yok.
 
 ### Faz 4 — Git LFS
@@ -33,3 +33,7 @@ Sıradaki fazı engelleyen işler.
 ### Faz 5 — Dokümantasyon ve son kontrol
 
 - [ ] 💻 README'deki "Scheduling" bölümündeki cron (macOS için launchd) örneğiyle zamanlanmış yedeği kur ve ertesi gün özeti ile çıkış kodunu kontrol et: gerçek makine ve `gh` oturumu gerekir, bulutta yok.
+
+### Faz 6 — İlk kurulum soruları
+
+- [ ] 💻 Config dosyası yokken `node dist/cli.js backup --target r2 --include '<owner>/<repo>'` çalıştır, soruları gerçek R2 bilgileriyle yanıtla; dosyanın `0600` izinle oluştuğunu ve yedeğin aynı çalıştırmada başladığını kontrol et: gerçek bucket gerekir.

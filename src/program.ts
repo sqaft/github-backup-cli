@@ -4,6 +4,7 @@ import type { CommandDeps, CommonOptions } from "./commands/context.js";
 import { runList } from "./commands/list.js";
 import { CliError, ExitCode } from "./util/errors.js";
 import { exec } from "./util/exec.js";
+import { createTerminalPrompter } from "./util/prompt.js";
 import { readToolInfo } from "./util/tool.js";
 
 /** Flags whose negated form (`--no-x`) is the only one users can pass. */
@@ -118,5 +119,7 @@ export function defaultDeps(): CommandDeps {
     env: process.env,
     stdout: (text) => process.stdout.write(text),
     stderr: (line) => process.stderr.write(`${line}\n`),
+    createPrompter:
+      process.stdin.isTTY && process.stderr.isTTY ? createTerminalPrompter : undefined,
   };
 }

@@ -1,9 +1,11 @@
 import { type ConfigFlags, type LoadedConfig, loadConfig } from "../config/load.js";
-import type { SourceConfig } from "../config/schema.js";
+import type { SourceConfig, TargetConfig } from "../config/schema.js";
 import type { Source } from "../sources/types.js";
+import type { Target } from "../targets/types.js";
 import { ConfigError } from "../util/errors.js";
 import type { Exec } from "../util/exec.js";
 import { createLogger, type Logger, type LogLevel } from "../util/log.js";
+import type { Prompter } from "../util/prompt.js";
 
 /** Everything a command needs from the outside world; replaced in tests. */
 export interface CommandDeps {
@@ -16,6 +18,9 @@ export interface CommandDeps {
   homeDir?: string;
   cwd?: string;
   createSource?: (config: SourceConfig, deps: { exec: Exec }) => Source;
+  createTarget?: (config: TargetConfig, options: { keep: number }) => Target;
+  /** Present only when a person can answer questions at a terminal. */
+  createPrompter?: () => Prompter;
   /** Aborts a running backup, like SIGINT does. */
   signal?: AbortSignal;
   /** Clock and waiting, replaced in tests. */

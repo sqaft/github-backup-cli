@@ -1,7 +1,8 @@
 import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { askText } from "../util/prompt.js";
 import { parseSnapshotName as parseName } from "./names.js";
-import type { Manifest, SnapshotFiles, Target } from "./types.js";
+import type { Manifest, SnapshotFiles, Target, TargetSetup } from "./types.js";
 
 export interface LocalTargetOptions {
   name: string;
@@ -25,6 +26,14 @@ async function store(from: string, to: string): Promise<void> {
   await copyFile(from, `${to}${PARTIAL}`);
   await rename(`${to}${PARTIAL}`, to);
 }
+
+export const localTargetSetup: TargetSetup = {
+  label: "Local directory",
+  defaultName: "disk",
+  async prompt(prompter, name) {
+    return { type: "local", name, path: await askText(prompter, "Directory") };
+  },
+};
 
 export function createLocalTarget(options: LocalTargetOptions): Target {
   const root = path.resolve(options.path);

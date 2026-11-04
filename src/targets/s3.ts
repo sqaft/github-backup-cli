@@ -13,8 +13,9 @@ import {
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { ConfigError } from "../util/errors.js";
+import { askChoice, askText, askYesNo, type Prompter } from "../util/prompt.js";
 import { parseSnapshotName } from "./names.js";
-import type { Manifest, SnapshotFiles, Target } from "./types.js";
+import type { Manifest, SnapshotFiles, Target, TargetSetup } from "./types.js";
 
 export const DEFAULT_REGION = "us-east-1";
 /** Part size of multipart uploads: 16 MiB allows objects up to 160 GB (10 000 parts). */
@@ -81,6 +82,75 @@ export function s3ClientConfig(
   }
   return config;
 }
+
+/** Rejects anything that cannot be one part of a host name, such as a pasted URL. */
+function validateHostPart(value: string): string | undefined {
+  return /^[a-zA-Z0-9-]+$/.test(value) ? undefined : "Enter only letters, digits and hyphens.";
+}
+
+function validateEndpoint(value: string): string | undefined {
+  if (!URL.canParse(value)) return "Enter a full URL such as https://s3.example.com.";
+  if (new URL(value).pathname !== "/") return "Enter the URL without a bucket or other path.";
+  return undefined;
+}
+
+type S3Connection = Pick<S3TargetOptions, "endpoint" | "region" | "forcePathStyle">;
+
+const S3_PROVIDERS: ReadonlyArray<{
+  label: string;
+  value: (prompter: Prompter) => Promise<S3Connection>;
+}> = [
+  {
+    label: "Cloudflare R2",
+    value: async (prompter) => {
+      const account = await askText(prompter, "Cloudflare account ID", {
+        validate: validateHostPart,
+      });
+      return { endpoint: `https://${account}.r2.cloudflarestorage.com`, region: "auto" };
+    },
+  },
+  {
+    label: "AWS S3",
+    value: async (prompter) => ({
+      region: await askText(prompter, "Bucket region", { defaultValue: DEFAULT_REGION }),
+    }),
+  },
+  {
+    label: "Backblaze B2",
+    value: async (prompter) => {
+      const region = await askText(prompter, "Bucket region (e.g. us-west-004)", {
+        validate: validateHostPart,
+      });
+      return { endpoint: `https://s3.${region}.backblazeb2.com`, region };
+    },
+  },
+  {
+    label: "Other (MinIO or another S3-compatible service)",
+    value: async (prompter) => ({
+      endpoint: await askText(prompter, "Endpoint URL", { validate: validateEndpoint }),
+      region: await askText(prompter, "Region", { defaultValue: DEFAULT_REGION }),
+      forcePathStyle: await askYesNo(prompter, "Use path-style URLs (MinIO needs this)?", true),
+    }),
+  },
+];
+
+export const s3TargetSetup: TargetSetup = {
+  label: "S3-compatible bucket",
+  defaultName: "s3",
+  async prompt(prompter, name) {
+    const askConnection = await askChoice(prompter, "Storage provider", S3_PROVIDERS);
+    const connection = await askConnection(prompter);
+    return {
+      type: "s3",
+      name,
+      bucket: await askText(prompter, "Bucket name"),
+      prefix: await askText(prompter, "Key prefix", { defaultValue: "git" }),
+      ...connection,
+      accessKeyId: await askText(prompter, "Access key ID"),
+      secretAccessKey: await askText(prompter, "Secret access key", { hidden: true }),
+    };
+  },
+};
 
 export function maskSecrets(text: string, secrets: readonly (string | undefined)[]): string {
   let out = text;

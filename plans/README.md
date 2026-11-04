@@ -17,6 +17,7 @@
 - **Git LFS:** LFS nesneleri snapshot başına tar olarak yedeklenir; `git-lfs` yoksa hata, `--no-lfs` ile atlanır. (Faz 4)
 - **Genişletilebilir yapı:** kaynaklar (git servisleri) ve hedefler (depolama) arayüzlerle ayrılır; yeni tür çekirdeği değiştirmeden eklenir. (Faz 1–3)
 - **Dokümantasyon:** kurulum, config referansı, cron/launchd, geri yükleme. (Faz 5)
+- **İlk kurulum soruları:** config dosyası yoksa `backup` terminalde hedefleri sorar, bağlantıyı dener, dosyayı yazar ve aynı çalıştırmada devam eder. (Faz 6)
 
 ## Kapsam dışı
 
@@ -49,6 +50,7 @@ Fazlar tablodaki sırayla uygulanır; sıranın tek kaynağı bu tablodur. Her f
 | 3 | `s3` hedefi | Tamamlandı | [faz-03-s3.md](faz-03-s3.md) |
 | 4 | Git LFS | Tamamlandı | [faz-04-lfs.md](faz-04-lfs.md) |
 | 5 | Dokümantasyon ve son kontrol | Tamamlandı | [faz-05-dokuman-ve-son-kontrol.md](faz-05-dokuman-ve-son-kontrol.md) |
+| 6 | İlk kurulum soruları | Tamamlandı | [faz-06-ilk-kurulum.md](faz-06-ilk-kurulum.md) |
 
 ## Çalışma kuralları
 

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { missingConfigHint } from "../config/load.js";
 import { discoverRepos } from "../core/discover.js";
 import { acquireLock, type Lock } from "../core/lock.js";
 import { resolveKeep } from "../core/retention.js";
@@ -10,6 +11,7 @@ import { ConfigError, ExitCode, PrerequisiteError } from "../util/errors.js";
 import type { Exec } from "../util/exec.js";
 import { readToolInfo } from "../util/tool.js";
 import { type CommandDeps, type CommonOptions, prepare } from "./context.js";
+import { setupMissingConfig } from "./setup.js";
 
 export interface BackupOptions extends CommonOptions {}
 
@@ -78,13 +80,18 @@ export function renderJson(summary: Summary, listFailures: ListFailure[]): strin
 
 /** `github-backup backup`. Returns the process exit code. */
 export async function runBackup(options: BackupOptions, deps: CommandDeps): Promise<number> {
+  await setupMissingConfig(options, deps);
   const { loaded, log } = prepare(options, deps);
   const { config } = loaded;
   if (config.targets.length === 0) {
-    throw new ConfigError("no targets configured; use --local <path> or add targets to config");
+    throw new ConfigError(
+      "no targets configured; use --local <path> or add targets to config" +
+        missingConfigHint(loaded.missingConfigPath),
+    );
   }
+  const create = deps.createTarget ?? createTarget;
   const targets = config.targets.map((target) =>
-    createTarget(target, { keep: resolveKeep(target.keep, config.keep) }),
+    create(target, { keep: resolveKeep(target.keep, config.keep) }),
   );
   await checkGit(deps.exec);
   if (config.lfs) await checkLfs(deps.exec);

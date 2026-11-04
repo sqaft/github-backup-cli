@@ -46,8 +46,8 @@ A target is a storage that receives snapshots (`local` and `s3` exist).
    - `cleanupIncomplete` removes leftovers that have no manifest.
    - `checkAccess` (optional) fails early with a readable reason when the storage is unreachable.
 2. Add a `type` branch to `targetSchema` in `src/config/schema.ts` (strict object with `name`, an optional `keep` and the type's own fields). If a field needs expansion or a credential fallback, handle it in `resolveTarget` or the credential step of `loadConfig` in `src/config/load.ts`.
-3. Register it in `createTarget` in `src/targets/index.ts`.
-4. Add unit tests with a fake client and integration tests against a real service or a local stand-in, in the style of `test/integration/local-target.test.ts` and `test/integration/s3-target.test.ts`.
+3. Register it in `createTarget` in `src/targets/index.ts`, and add its first-run questions: export a `TargetSetup` (from `src/targets/types.ts`) and list it in `TARGET_SETUPS`. `prompt` returns the raw target; `src/commands/setup.ts` validates it, runs `checkAccess` and writes the file. Ask through `askText`, `askYesNo` and `askChoice` from `src/util/prompt.ts`, and pass `hidden: true` for secrets.
+4. Add unit tests with a fake client and integration tests against a real service or a local stand-in, in the style of `test/integration/local-target.test.ts` and `test/integration/s3-target.test.ts`, and cover the questions in `test/unit/setup.test.ts`.
 5. Update `config.example.json`, the README (target reference and snapshot layout), `plans/mimari.md` and, if the layout or manifest changes, `src/core/snapshot.ts`.
 
 ## Commits and pull requests

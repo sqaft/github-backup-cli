@@ -1,3 +1,5 @@
+import type { Prompter } from "../util/prompt.js";
+
 export interface RefEntry {
   name: string;
   sha: string;
@@ -22,6 +24,15 @@ export interface SnapshotFiles {
   /** Local path of the LFS object archive, when the repository has LFS objects. */
   lfsTar?: string;
   manifest: Manifest;
+}
+
+/** Questions that create a configured target when `backup` writes a new config file. */
+export interface TargetSetup {
+  /** Shown in the target menu. */
+  readonly label: string;
+  readonly defaultName: string;
+  /** Returns the raw target; the caller validates it against the schema. */
+  prompt(prompter: Prompter, name: string): Promise<unknown>;
 }
 
 /** Storage a snapshot is written to. `repoKey` is `<source>/<owner>/<repo>[.wiki]`. */
