@@ -2,6 +2,7 @@ import { type ConfigFlags, type LoadedConfig, loadConfig } from "../config/load.
 import type { SourceConfig, TargetConfig } from "../config/schema.js";
 import type { Source } from "../sources/types.js";
 import type { Target } from "../targets/types.js";
+import type { Paint } from "../util/color.js";
 import { ConfigError } from "../util/errors.js";
 import type { Exec } from "../util/exec.js";
 import { createLogger, type Logger, type LogLevel } from "../util/log.js";
@@ -22,8 +23,10 @@ export interface CommandDeps {
   createTarget?: (config: TargetConfig, options: { keep: number }) => Target;
   /** Present only when a person can answer questions at a terminal. */
   createPrompter?: () => Prompter;
-  /** Present only when a progress bar can be drawn on a terminal. */
+  /** Present only when progress can be drawn on a terminal. */
   createProgress?: () => ProgressDisplay;
+  /** Present only when stderr can show color; absent means plain text. */
+  paint?: Paint;
   /** Aborts a running backup, like SIGINT does. */
   signal?: AbortSignal;
   /** Clock and waiting, replaced in tests. */
@@ -46,12 +49,29 @@ export function logLevel(options: CommonOptions): LogLevel {
   return options.verbose ? "verbose" : "normal";
 }
 
+/**
+ * `prepare` for commands that wait on tools or the network. On a terminal the display shows the
+ * work under way; log lines go through it. The caller stops it before writing the result.
+ */
+export function prepareWithProgress(
+  options: CommonOptions,
+  deps: CommandDeps,
+): { loaded: LoadedConfig; log: Logger; progress?: ProgressDisplay } {
+  const progress = options.quiet ? undefined : deps.createProgress?.();
+  const prepared = prepare(options, progress ? { ...deps, stderr: progress.log } : deps);
+  return { ...prepared, progress };
+}
+
 /** Loads the configuration and creates the logger, masking configured credentials. */
 export function prepare(
   options: CommonOptions,
   deps: CommandDeps,
 ): { loaded: LoadedConfig; log: Logger } {
-  const log = createLogger({ level: logLevel(options), write: deps.stderr });
+  const log = createLogger({
+    level: logLevel(options),
+    write: deps.stderr,
+    paint: deps.paint,
+  });
   const loaded = loadConfig({
     flags: options,
     env: deps.env,

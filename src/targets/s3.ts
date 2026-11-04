@@ -171,6 +171,11 @@ export function describeS3Error(err: unknown, secrets: readonly (string | undefi
   return maskSecrets(text, secrets);
 }
 
+function isMissingObject(err: unknown): boolean {
+  const meta = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return meta.name === "NoSuchKey" || meta.$metadata?.httpStatusCode === 404;
+}
+
 interface ListedObject {
   key: string;
   name: string;
@@ -285,6 +290,29 @@ export function createS3Target(options: S3TargetOptions): Target {
     }
   }
 
+  async function readManifest(repoKey: string, stamp: string): Promise<Manifest | null> {
+    return guard(`${repoKey}: cannot read manifest ${stamp}`, async () => {
+      let text: string;
+      try {
+        const response = await client.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: objectKey(prefix, repoKey, `${stamp}.json`),
+          }),
+        );
+        text = (await response.Body?.transformToString()) ?? "";
+      } catch (err) {
+        if (isMissingObject(err)) return null;
+        throw err;
+      }
+      try {
+        return JSON.parse(text) as Manifest;
+      } catch {
+        return null;
+      }
+    });
+  }
+
   return {
     name: options.name,
     type: "s3",
@@ -296,23 +324,14 @@ export function createS3Target(options: S3TargetOptions): Target {
       );
     },
 
-    async latestManifest(repoKey) {
-      return guard(`${repoKey}: cannot read latest manifest`, async () => {
-        const latest = completeStamps(await listRepo(repoKey)).at(-1);
-        if (latest === undefined) return null;
-        const response = await client.send(
-          new GetObjectCommand({
-            Bucket: bucket,
-            Key: objectKey(prefix, repoKey, `${latest}.json`),
-          }),
-        );
-        try {
-          return JSON.parse((await response.Body?.transformToString()) ?? "") as Manifest;
-        } catch {
-          return null;
-        }
-      });
+    latestManifest: async (repoKey) => {
+      const latest = await guard(`${repoKey}: cannot read latest manifest`, async () =>
+        completeStamps(await listRepo(repoKey)).at(-1),
+      );
+      return latest === undefined ? null : readManifest(repoKey, latest);
     },
+
+    readManifest,
 
     async putSnapshot(repoKey, stamp, files: SnapshotFiles, onPercent) {
       const { bundleBytes, lfsTarBytes = 0 } = files.manifest;

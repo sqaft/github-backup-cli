@@ -1,72 +1,58 @@
 import path from "node:path";
-import { missingConfigHint } from "../config/load.js";
+import { type LoadedConfig, missingConfigHint } from "../config/load.js";
+import { checkGit, checkLfs, checkTarget } from "../core/checks.js";
 import { discoverRepos } from "../core/discover.js";
 import { acquireLock, type Lock } from "../core/lock.js";
 import { resolveKeep } from "../core/retention.js";
 import { backupRepos, type Summary } from "../core/run.js";
 import type { ListFailure } from "../sources/types.js";
 import { createTarget } from "../targets/index.js";
-import type { Target } from "../targets/types.js";
-import { ConfigError, ExitCode, PrerequisiteError } from "../util/errors.js";
-import type { Exec } from "../util/exec.js";
+import { type Paint, plain } from "../util/color.js";
+import { ConfigError, ExitCode } from "../util/errors.js";
+import { formatBytes } from "../util/format.js";
+import type { Logger } from "../util/log.js";
+import { formatDuration, type ProgressDisplay } from "../util/progress.js";
 import { readToolInfo } from "../util/tool.js";
-import { type CommandDeps, type CommonOptions, prepare } from "./context.js";
+import { type CommandDeps, type CommonOptions, prepareWithProgress } from "./context.js";
 import { setupMissingConfig } from "./setup.js";
 
 export interface BackupOptions extends CommonOptions {}
 
-async function checkGit(exec: Exec): Promise<void> {
-  try {
-    await exec("git", ["--version"]);
-  } catch {
-    throw new PrerequisiteError("git is not installed or not in PATH; install git and try again");
-  }
-}
-
-/** Fails with exit code 2 when Git LFS is enabled but `git-lfs` is missing. */
-async function checkLfs(exec: Exec): Promise<void> {
-  try {
-    await exec("git", ["lfs", "version"]);
-  } catch {
-    throw new PrerequisiteError(
-      "git-lfs is not installed; install it from https://git-lfs.com " +
-        "or rerun with --no-lfs to skip LFS objects",
-    );
-  }
-}
-
-/** Fails with exit code 2 when a target's storage is unreachable or rejects the credentials. */
-async function checkTargets(targets: Target[]): Promise<void> {
-  for (const target of targets) {
-    try {
-      await target.checkAccess?.();
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw new PrerequisiteError(`target "${target.name}": ${reason}`);
-    }
-  }
-}
-
 /** Lines printed to stderr at the end of a run. */
-export function renderSummary(summary: Summary, listFailures: ListFailure[]): string[] {
+export function renderSummary(
+  summary: Summary,
+  listFailures: ListFailure[],
+  durationMs: number,
+  paint: Paint = plain,
+): string[] {
+  const written = summary.bytes > 0 ? `, ${formatBytes(summary.bytes)} written` : "";
   const lines = [
-    `Backup finished: ${summary.ok} backed up, ${summary.unchanged} unchanged, ` +
-      `${summary.skipped} skipped, ${summary.failed} failed`,
+    `Backup finished in ${formatDuration(durationMs)}: ${summary.ok} backed up, ` +
+      `${summary.unchanged} unchanged, ${summary.skipped} skipped, ${summary.failed} failed` +
+      written,
   ];
   const failed = summary.results.filter((r) => r.status === "failed");
-  for (const result of failed) lines.push(`  failed: ${result.key}: ${result.error}`);
-  for (const failure of listFailures) {
-    lines.push(`  not listed: ${failure.owner}: ${failure.message}`);
+  for (const result of failed) {
+    lines.push(`  ${paint("red", "failed: ")}${result.key}: ${result.error}`);
   }
-  if (summary.interrupted) lines.push("Interrupted before all repositories were processed.");
+  for (const failure of listFailures) {
+    lines.push(`  ${paint("red", "not listed: ")}${failure.owner}: ${failure.message}`);
+  }
+  if (summary.interrupted) {
+    lines.push(paint("yellow", "Interrupted before all repositories were processed."));
+  }
   return lines;
 }
 
-export function renderJson(summary: Summary, listFailures: ListFailure[]): string {
+export function renderJson(
+  summary: Summary,
+  listFailures: ListFailure[],
+  durationMs: number,
+): string {
   const { results, ...counts } = summary;
   return JSON.stringify(
     {
-      summary: counts,
+      summary: { ...counts, durationMs },
       failures: results
         .filter((r) => r.status === "failed")
         .map((r) => ({ repo: r.key, error: r.error, targets: r.targets })),
@@ -78,25 +64,30 @@ export function renderJson(summary: Summary, listFailures: ListFailure[]): strin
   );
 }
 
-/** `github-backup backup`. Returns the process exit code. */
-export async function runBackup(options: BackupOptions, deps: CommandDeps): Promise<number> {
-  await setupMissingConfig(options, deps);
-  const progress = options.quiet ? undefined : deps.createProgress?.();
-  const { loaded, log } = prepare(options, progress ? { ...deps, stderr: progress.log } : deps);
-  const { config } = loaded;
+/** Checks the prerequisites, then runs the backup under the lock. */
+async function checkAndBackUp(
+  { config, missingConfigPath }: LoadedConfig,
+  log: Logger,
+  options: BackupOptions,
+  deps: CommandDeps,
+  progress: ProgressDisplay | undefined,
+): Promise<number> {
   if (config.targets.length === 0) {
     throw new ConfigError(
-      "no targets configured; use --local <path> or add targets to config" +
-        missingConfigHint(loaded.missingConfigPath),
+      `no targets configured; use --to <path> or add targets to config${missingConfigHint(missingConfigPath)}`,
     );
   }
   const create = deps.createTarget ?? createTarget;
   const targets = config.targets.map((target) =>
     create(target, { keep: resolveKeep(target.keep, config.keep) }),
   );
+  progress?.activity("Checking tools");
   await checkGit(deps.exec);
   if (config.lfs) await checkLfs(deps.exec);
-  await checkTargets(targets);
+  for (const target of targets) {
+    progress?.activity(`Checking target ${target.name}`);
+    await checkTarget(target);
+  }
 
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -105,8 +96,11 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
   process.once("SIGINT", abort);
   process.once("SIGTERM", abort);
   let lock: Lock | undefined;
+  const clock = deps.now ?? (() => new Date());
   try {
     lock = acquireLock(path.join(config.cacheDir, ".lock"));
+    const startedAt = clock().getTime();
+    progress?.activity("Listing repositories");
     const discovery = await discoverRepos(config.sources, {
       exec: deps.exec,
       log,
@@ -114,6 +108,7 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
     });
     if (controller.signal.aborted) return ExitCode.Interrupted;
 
+    progress?.activity("Preparing");
     const summary = await backupRepos(
       {
         repos: discovery.repos,
@@ -135,20 +130,33 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
         retryDelaysMs: deps.retryDelaysMs,
       },
     );
+    const durationMs = clock().getTime() - startedAt;
     progress?.stop();
 
-    for (const line of renderSummary(summary, discovery.failures)) log.summary(line);
-    if (options.json) deps.stdout(`${renderJson(summary, discovery.failures)}\n`);
+    for (const line of renderSummary(summary, discovery.failures, durationMs, deps.paint)) {
+      log.summary(line);
+    }
+    if (options.json) deps.stdout(`${renderJson(summary, discovery.failures, durationMs)}\n`);
 
     if (summary.interrupted) return ExitCode.Interrupted;
     return summary.failed > 0 || discovery.failures.length > 0
       ? ExitCode.PartialFailure
       : ExitCode.Success;
   } finally {
-    progress?.stop();
     lock?.release();
     deps.signal?.removeEventListener("abort", abort);
     process.removeListener("SIGINT", abort);
     process.removeListener("SIGTERM", abort);
+  }
+}
+
+/** `github-backup backup`. Returns the process exit code. */
+export async function runBackup(options: BackupOptions, deps: CommandDeps): Promise<number> {
+  await setupMissingConfig(options, deps);
+  const { loaded, log, progress } = prepareWithProgress(options, deps);
+  try {
+    return await checkAndBackUp(loaded, log, options, deps, progress);
+  } finally {
+    progress?.stop();
   }
 }

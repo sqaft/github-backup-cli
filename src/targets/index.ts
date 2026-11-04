@@ -5,7 +5,7 @@ import type { Target, TargetSetup } from "./types.js";
 
 export type { Manifest, SnapshotFiles, Target, TargetSetup } from "./types.js";
 
-/** Target types offered when `backup` creates a config file; the first is the default. */
+/** Target types offered when the config file is written; the first is the default. */
 export const TARGET_SETUPS: readonly TargetSetup[] = [s3TargetSetup, localTargetSetup];
 
 /** Registry: maps a configured target `type` to its implementation. */

@@ -21,6 +21,8 @@ export interface TargetResult {
   target: string;
   status: "created" | "unchanged" | "failed";
   stamp?: string;
+  /** Size of the snapshot written (bundle plus LFS archive); set for `created`. */
+  bytes?: number;
   error?: string;
 }
 
@@ -40,6 +42,8 @@ export interface Summary {
   unchanged: number;
   skipped: number;
   failed: number;
+  /** Bytes written over all targets; a snapshot stored in two targets counts twice. */
+  bytes: number;
   results: UnitResult[];
   /** True when the run was aborted by a signal. */
   interrupted: boolean;
@@ -124,11 +128,13 @@ async function processUnit(
   ctx: BackupContext,
 ): Promise<UnitResult> {
   const { log, progress } = ctx;
+  // Per-unit lines would flood the area above a progress block.
+  const chatty = (text: string, scope: string) => log[progress ? "debug" : "info"](text, scope);
   const phase = (label: string, from: number, to = from) =>
     progress?.phase(unit.key, label, from, to);
   const onPercent = progress ? (percent: number) => progress.percent(unit.key, percent) : undefined;
   if (unit.skip !== undefined) {
-    log.info(`skipped: ${unit.skip}`, unit.key);
+    chatty(`skipped: ${unit.skip}`, unit.key);
     return finish(unit, "skipped", [], { reason: unit.skip });
   }
   const source = input.sources.get(unit.repo.source);
@@ -159,14 +165,14 @@ async function processUnit(
       syncMirror(git, { mirrorDir: unit.mirrorDir, url, kind: unit.kind, onPercent }),
     );
     if (mirror.status === "skipped") {
-      log.info(`skipped: ${mirror.reason}`, unit.key);
+      chatty(`skipped: ${mirror.reason}`, unit.key);
       return finish(unit, "skipped", [], { reason: mirror.reason });
     }
 
     phase("checking targets", PHASE_END.fetch);
     const refs = await listRefs(git, unit.mirrorDir);
     if (refs.length === 0) {
-      log.info("skipped: empty", unit.key);
+      chatty("skipped: empty", unit.key);
       return finish(unit, "skipped", [], { reason: "empty" });
     }
     const refsHash = hashRefs(refs);
@@ -233,7 +239,12 @@ async function processUnit(
           );
           phase(`pruning ${target.name}`, writeEnd);
           await retry(() => applyRetention(target, unit.key));
-          results.push({ target: target.name, status: "created", stamp });
+          results.push({
+            target: target.name,
+            status: "created",
+            stamp,
+            bytes: bundleBytes + (lfsTarBytes ?? 0),
+          });
           log.info(`snapshot ${stamp} written to ${target.name}`, unit.key);
         } catch (err) {
           results.push({ target: target.name, status: "failed", error: message(err) });
@@ -248,7 +259,7 @@ async function processUnit(
       return finish(unit, "failed", results, { error });
     }
     const created = results.some((r) => r.status === "created");
-    if (!created) log.info("unchanged", unit.key);
+    if (!created) chatty("unchanged", unit.key);
     return finish(unit, created ? "ok" : "unchanged", results);
   } catch (err) {
     const error = ctx.signal?.aborted ? "interrupted" : message(err);
@@ -273,6 +284,10 @@ export function summarize(results: UnitResult[], interrupted: boolean): Summary 
     unchanged: count("unchanged"),
     skipped: count("skipped"),
     failed: count("failed"),
+    bytes: results.reduce(
+      (sum, r) => sum + r.targets.reduce((inner, t) => inner + (t.bytes ?? 0), 0),
+      0,
+    ),
     results,
     interrupted,
   };

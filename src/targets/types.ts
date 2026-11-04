@@ -26,7 +26,7 @@ export interface SnapshotFiles {
   manifest: Manifest;
 }
 
-/** Questions that create a configured target when `backup` writes a new config file. */
+/** Questions that create a configured target when setup writes the config file. */
 export interface TargetSetup {
   /** Shown in the target menu. */
   readonly label: string;
@@ -43,6 +43,8 @@ export interface Target {
   readonly keep: number;
   /** Manifest of the newest complete snapshot, or null. */
   latestManifest(repoKey: string): Promise<Manifest | null>;
+  /** Manifest of one snapshot; null when it is missing or cannot be parsed. */
+  readManifest(repoKey: string, stamp: string): Promise<Manifest | null>;
   /**
    * Stores the files; the manifest is stored last. `onPercent`, when the storage can tell,
    * receives the share of the snapshot's bytes stored so far.
@@ -59,6 +61,9 @@ export interface Target {
   deleteSnapshot(repoKey: string, stamp: string): Promise<void>;
   /** Removes leftovers of interrupted uploads (files without a manifest). */
   cleanupIncomplete(repoKey: string): Promise<void>;
-  /** Fails with a readable reason when the storage cannot be reached; run before a backup starts. */
+  /**
+   * Fails with a readable reason when the storage cannot be reached; run before a backup starts.
+   * It must not create or change anything.
+   */
   checkAccess?(): Promise<void>;
 }

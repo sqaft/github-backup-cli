@@ -280,26 +280,26 @@ describe("loadConfig targets", () => {
     );
   });
 
-  it("--local adds a temporary local target", () => {
+  it("--to adds a temporary local target", () => {
     writeConfig({ targets });
-    const result = load({ config: "config.json", local: "out" });
+    const result = load({ config: "config.json", to: "out" });
     expect(result.config.targets.map((t) => t.name)).toEqual(["disk", "r2", "local"]);
     expect(result.config.targets[2]).toMatchObject({ type: "local", path: path.join(home, "out") });
   });
 
-  it("--local can be combined with --target", () => {
+  it("--to can be combined with --target", () => {
     writeConfig({ targets });
     const names = load({
       config: "config.json",
-      local: "out",
+      to: "out",
       target: ["local"],
     }).config.targets.map((t) => t.name);
     expect(names).toEqual(["local"]);
   });
 
-  it('--local conflicts with a target named "local"', () => {
+  it('--to conflicts with a target named "local"', () => {
     writeConfig({ targets: [{ type: "local", name: "local", path: "/x" }] });
-    expect(() => load({ config: "config.json", local: "out" })).toThrow(/conflicts/);
+    expect(() => load({ config: "config.json", to: "out" })).toThrow(/conflicts/);
   });
 });
 

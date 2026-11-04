@@ -18,6 +18,7 @@ All four must pass before a change is merged; CI runs them on Node 22 and 24. Yo
 - Call external programs only through `Exec` from `src/util/exec.ts`, with an argument array (no shell). Modules take `exec` as a dependency so tests can pass a fake.
 - Never change the user's global git config. Authentication for git child processes goes through the environment returned by `Source.gitEnv()`.
 - Write run output only through the `Logger`, never `console.*` or `process.stderr`: during a backup the progress block owns stderr, and a direct write corrupts it.
+- Terminal colors go through `Paint` from `src/util/color.ts`. Fit a line to the terminal width before painting it: cutting a string that contains escape codes corrupts the display.
 - Never log tokens or access keys, and keep them out of error messages. Register secrets with the logger (`log.addSecret`) and strip credentials from URLs in messages.
 - New behavior comes with tests. Test git operations against real temporary repositories (`test/helpers/git.ts`: `TestRemote`, `fakeSource`, `isolatedExec`), and pure logic with table-driven unit tests.
 - Code, comments, the README and commit messages are in English.
@@ -44,9 +45,10 @@ A target is a storage that receives snapshots (`local` and `s3` exist).
    - `putSnapshot` writes the bundle and LFS tar first and the manifest last; a snapshot without its manifest is incomplete. Files must not appear under their final name before they are complete.
    - `putSnapshot` calls `onPercent` with the share of bytes stored so far when the storage can tell; without it the progress block shows only the step name.
    - `listSnapshots` returns only snapshots that have a manifest, oldest first.
+   - `readManifest` returns the manifest of one snapshot, or null when it is missing or unreadable.
    - `deleteSnapshot` removes the manifest first.
    - `cleanupIncomplete` removes leftovers that have no manifest.
-   - `checkAccess` (optional) fails early with a readable reason when the storage is unreachable.
+   - `checkAccess` (optional) fails early with a readable reason when the storage is unreachable. It must not change the storage; `doctor` runs it too.
 2. Add a `type` branch to `targetSchema` in `src/config/schema.ts` (strict object with `name`, an optional `keep` and the type's own fields). If a field needs expansion or a credential fallback, handle it in `resolveTarget` or the credential step of `loadConfig` in `src/config/load.ts`.
 3. Register it in `createTarget` in `src/targets/index.ts`, and add its first-run questions: export a `TargetSetup` (from `src/targets/types.ts`) and list it in `TARGET_SETUPS`. `prompt` returns the raw target; `src/commands/setup.ts` validates it, runs `checkAccess` and writes the file. Ask through `askText`, `askYesNo` and `askChoice` from `src/util/prompt.ts`, and pass `hidden: true` for secrets.
 4. Add unit tests with a fake client and integration tests against a real service or a local stand-in, in the style of `test/integration/local-target.test.ts` and `test/integration/s3-target.test.ts`, and cover the questions in `test/unit/setup.test.ts`.

@@ -1,4 +1,15 @@
-import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import {
+  access,
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { askText } from "../util/prompt.js";
 import { parseSnapshotName as parseName } from "./names.js";
@@ -52,22 +63,49 @@ export function createLocalTarget(options: LocalTargetOptions): Target {
     return stamps.sort();
   }
 
+  async function readManifest(repoKey: string, stamp: string): Promise<Manifest | null> {
+    const file = path.join(dirOf(repoKey), `${stamp}.json`);
+    try {
+      return JSON.parse(await readFile(file, "utf8")) as Manifest;
+    } catch {
+      return null;
+    }
+  }
+
   return {
     name: options.name,
     type: "local",
     keep: options.keep,
 
-    async latestManifest(repoKey) {
-      const dir = dirOf(repoKey);
-      const stamps = await completeStamps(dir);
-      const latest = stamps.at(-1);
-      if (latest === undefined) return null;
+    async checkAccess() {
+      // The target directory is created when a snapshot is written, so only the nearest
+      // existing ancestor has to be a directory that accepts new entries.
+      let existing = root;
+      for (;;) {
+        try {
+          if (!(await stat(existing)).isDirectory())
+            throw new Error(`${existing} is not a directory`);
+          break;
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          const parent = path.dirname(existing);
+          if ((code !== "ENOENT" && code !== "ENOTDIR") || parent === existing) throw err;
+          existing = parent;
+        }
+      }
       try {
-        return JSON.parse(await readFile(path.join(dir, `${latest}.json`), "utf8")) as Manifest;
+        await access(existing, constants.W_OK);
       } catch {
-        return null;
+        throw new Error(`${existing} is not writable`);
       }
     },
+
+    latestManifest: async (repoKey) => {
+      const latest = (await completeStamps(dirOf(repoKey))).at(-1);
+      return latest === undefined ? null : readManifest(repoKey, latest);
+    },
+
+    readManifest,
 
     async putSnapshot(repoKey, stamp, files: SnapshotFiles) {
       const dir = dirOf(repoKey);

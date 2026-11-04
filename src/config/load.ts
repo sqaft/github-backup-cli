@@ -19,8 +19,8 @@ export interface ConfigFlags {
   forks?: boolean;
   /** Names of the targets to run. */
   target?: string[];
-  /** Adds a temporary `local` target at this path. */
-  local?: string;
+  /** Adds a temporary `local` target at this path (`--to`). */
+  to?: string;
 }
 
 export interface LoadInput {
@@ -54,7 +54,7 @@ export interface Overrides {
   archived?: boolean;
   forks?: boolean;
   target?: string[];
-  local?: string;
+  to?: string;
 }
 
 export function parseBoolean(name: string, value: string): boolean {
@@ -120,7 +120,7 @@ export function overridesFromFlags(flags: ConfigFlags): Overrides {
   if (flags.archived !== undefined) out.archived = flags.archived;
   if (flags.forks !== undefined) out.forks = flags.forks;
   if (flags.target?.length) out.target = flags.target;
-  if (flags.local !== undefined) out.local = flags.local;
+  if (flags.to !== undefined) out.to = flags.to;
   return out;
 }
 
@@ -175,10 +175,11 @@ export function resolveConfigPath(input: LoadInput, overrides: Overrides): strin
 /** Tells the reader of a target error why no targets exist. */
 export function missingConfigHint(file: string | undefined): string {
   if (file === undefined) return "";
-  return `; no config file at ${file} (run backup in a terminal to create it)`;
+  return `; no config file at ${file} (run github-backup setup to create it)`;
 }
 
-type RawConfig = Record<string, unknown>;
+/** Contents of a config file before defaults, overrides and validation. */
+export type RawConfig = Record<string, unknown>;
 
 /** Applies flag/env overrides onto the raw file contents (pure). */
 export function applyOverrides(raw: RawConfig, o: Overrides): RawConfig {
@@ -240,6 +241,13 @@ function readConfigFile(file: string, explicit: boolean): RawConfig | undefined 
   return parsed;
 }
 
+/** Reads and parses a config file that must exist; no overrides and no validation. */
+export function readRawConfig(file: string): RawConfig {
+  const raw = readConfigFile(file, true);
+  if (raw === undefined) throw new ConfigError(`config file not found: ${file}`);
+  return raw;
+}
+
 function fileHasS3Keys(raw: RawConfig): boolean {
   const targets = Array.isArray(raw.targets) ? raw.targets : [];
   return targets.some(
@@ -284,14 +292,14 @@ export function loadConfig(input: LoadInput): LoadedConfig {
   config.cacheDir = expandPath(config.cacheDir, env, home, cwd);
   config.targets = config.targets.map((target) => resolveTarget(target, env, home, cwd));
 
-  if (overrides.local !== undefined) {
+  if (overrides.to !== undefined) {
     if (config.targets.some((t) => t.name === "local")) {
-      throw new ConfigError('--local conflicts with a configured target named "local"');
+      throw new ConfigError('--to conflicts with a configured target named "local"');
     }
     config.targets.push({
       type: "local",
       name: "local",
-      path: expandPath(overrides.local, env, home, cwd),
+      path: expandPath(overrides.to, env, home, cwd),
     });
   }
 

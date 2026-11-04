@@ -61,7 +61,7 @@ function setup(repos: RepoInfo[], env: Record<string, string>, exec?: Exec) {
   const backup = (...flags: string[]) =>
     createProgram(deps).run([
       "backup",
-      "--local",
+      "--to",
       path.join(root, "out"),
       "--cache-dir",
       path.join(root, "cache"),

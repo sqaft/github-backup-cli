@@ -14,3 +14,9 @@
 
 ## 2026-11-04 — Küçük `git fetch` `--progress` ile bile yüzde yazmaz
 `fetch.unpackLimit` (varsayılan 100) altındaki fetch'lerde git nesneleri `unpack-objects` ile açar ve iş hızlı bittiği için yüzde satırı çıkmaz; yalnızca büyük fetch'ler `Receiving objects: N%` yazar. Yüzdeye bağlı test küçük depoda `fetch.unpackLimit=1` ister. Bu satırlar çevrilebildiği için `--progress` çağrıları `LC_ALL=C` ile çalışır.
+
+## 2026-11-04 — Commander komutsuz çağrıda yardımı stderr'e yazıp `commander.help` fırlatır
+`exitOverride` ile birlikte argümansız çağrı `--help` gibi görünür: kod `commander.help` olduğu için çıkış 0 olur, ama yardım stderr'e gider. Kullanım hatası olarak ele almak için boş `argv` ayrıştırmadan önce yakalanır ve 2 ile çıkılır.
+
+## 2026-11-04 — Renkli terminal satırı kesilmeden önce ölçülmeli
+İlerleme bloğu satırları terminal genişliğine sığdırılır; ANSI kodu içeren metni `slice` ile kesmek kaçış dizisini bölüp ekranı bozar ve görünür uzunluğu yanlış ölçer. Bu yüzden satırlar parçalar halinde kurulur, önce görünür genişliğe göre kesilir, sonra boyanır.

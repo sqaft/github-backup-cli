@@ -157,7 +157,7 @@ describe("error descriptions", () => {
 });
 
 /** Minimal in-memory client that understands the commands the target sends. */
-function fakeClient(initial: string[], pageSize = 1000) {
+function fakeClient(initial: string[], pageSize = 1000, bodies: Record<string, string> = {}) {
   const keys = new Set(initial);
   const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
   // biome-ignore lint/suspicious/noExplicitAny: loosely typed stand-in for SDK commands
@@ -189,8 +189,17 @@ function fakeClient(initial: string[], pageSize = 1000) {
         keys.add(input.Key);
         return {};
       case "GetObjectCommand":
+        if (!keys.has(input.Key)) {
+          throw Object.assign(new Error("The specified key does not exist."), {
+            name: "NoSuchKey",
+            $metadata: { httpStatusCode: 404 },
+          });
+        }
         return {
-          Body: { transformToString: async () => JSON.stringify({ stamp: "from-fake" }) },
+          Body: {
+            transformToString: async () =>
+              bodies[input.Key] ?? JSON.stringify({ stamp: "from-fake" }),
+          },
         };
       default:
         throw new Error(`unexpected command ${name}`);
@@ -233,6 +242,45 @@ describe("s3 target against a fake client", () => {
     expect(await target.listSnapshots("github/o/r")).toEqual(["20260101T000000Z"]);
     expect(await target.latestManifest("github/o/r")).toEqual({ stamp: "from-fake" });
     expect(await target.latestManifest("github/o/none")).toBeNull();
+  });
+
+  it("reads the manifest of one snapshot, and null when it is missing or unparsable", async () => {
+    const good = stampKey("20260101T000000Z", "json");
+    const broken = stampKey("20260102T000000Z", "json");
+    const { client, calls } = fakeClient([good, broken], 1000, { [broken]: "{not json" });
+    const target = createS3Target({ ...options, client });
+
+    expect(await target.readManifest("github/o/r", "20260101T000000Z")).toEqual({
+      stamp: "from-fake",
+    });
+    expect(await target.readManifest("github/o/r", "20260102T000000Z")).toBeNull();
+    expect(await target.readManifest("github/o/r", "20260103T000000Z")).toBeNull();
+    expect(calls.filter((c) => c.name === "GetObjectCommand").map((c) => c.input.Key)).toEqual([
+      good,
+      broken,
+      stampKey("20260103T000000Z", "json"),
+    ]);
+  });
+
+  it("describes a failed manifest read without credentials", async () => {
+    const client = {
+      send: async () => {
+        throw Object.assign(new Error("bad key AKIA1 / s3cr3t"), {
+          name: "AccessDenied",
+          $metadata: { httpStatusCode: 403 },
+        });
+      },
+    };
+    const target = createS3Target({
+      ...options,
+      accessKeyId: "AKIA1",
+      secretAccessKey: "s3cr3t",
+      client: client as never,
+    });
+    const error = await target.readManifest("github/o/r", "20260101T000000Z").catch((e) => e);
+    expect(error.message).toBe(
+      "github/o/r: cannot read manifest 20260101T000000Z: AccessDenied: bad key *** / *** (HTTP 403)",
+    );
   });
 
   it("deletes the manifest first, then the rest in groups of 1000", async () => {

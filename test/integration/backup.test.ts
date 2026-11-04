@@ -1,15 +1,25 @@
 import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { renderSummary } from "../../src/commands/backup.js";
 import type { CommandDeps } from "../../src/commands/context.js";
+import type { Summary } from "../../src/core/run.js";
 import { createProgram } from "../../src/program.js";
 import type { RepoInfo } from "../../src/sources/types.js";
+import { ansi } from "../../src/util/color.js";
 import { ExitCode } from "../../src/util/errors.js";
 import type { ProgressDisplay } from "../../src/util/progress.js";
 import { fakeSource, isolatedExec, makeTempDir, repoInfo, TestRemote } from "../helpers/git.js";
 
 interface Json {
-  summary: { ok: number; unchanged: number; skipped: number; failed: number };
+  summary: {
+    ok: number;
+    unchanged: number;
+    skipped: number;
+    failed: number;
+    bytes: number;
+    durationMs: number;
+  };
   failures: Array<{ repo: string; error: string }>;
   results: Array<{ key: string; status: string; reason?: string }>;
 }
@@ -48,7 +58,7 @@ function setup(repos: RepoInfo[], extra: Partial<CommandDeps> = {}) {
     out.length = 0;
     const code = await createProgram(deps).run([
       "backup",
-      "--local",
+      "--to",
       path.join(root, "out"),
       "--cache-dir",
       path.join(root, "cache"),
@@ -67,6 +77,7 @@ const list = (key: string) =>
 function recordingProgress() {
   const events: string[] = [];
   const display: ProgressDisplay = {
+    activity: (label) => events.push(`activity ${label}`),
     start: (total) => events.push(`start ${total}`),
     unitStart: (key) => events.push(`unitStart ${key}`),
     phase: (key, label) => events.push(`phase ${key} ${label}`),
@@ -93,6 +104,10 @@ describe("backup", () => {
 
     const reported = events.filter((event) => !/^(log|percent) /.test(event));
     expect(reported).toEqual([
+      "activity Checking tools",
+      "activity Checking target local",
+      "activity Listing repositories",
+      "activity Preparing",
       "start 3",
       "unitStart test/o/a",
       "phase test/o/a fetching",
@@ -146,6 +161,57 @@ describe("backup", () => {
     expect(json?.failures[0]?.error).not.toContain("%");
   });
 
+  it("keeps per-unit unchanged and skipped lines off the progress block", async () => {
+    const a = new TestRemote(root, "a", home);
+    a.commit("a.txt", "1");
+    const repos = [repoInfo("o/a", a), repoInfo("o/empty", a, { isEmpty: true })];
+    const withProgress = recordingProgress();
+    const shown = setup(repos, { createProgress: withProgress.createProgress });
+    await shown.backup();
+    withProgress.events.length = 0;
+    await shown.backup();
+
+    const logged = withProgress.events.filter((event) => event.startsWith("log ")).join("\n");
+    expect(logged).not.toContain("test/o/a: unchanged");
+    expect(logged).not.toContain("test/o/empty: skipped");
+
+    withProgress.events.length = 0;
+    await shown.backup("--verbose");
+    const verbose = withProgress.events.filter((event) => event.startsWith("log ")).join("\n");
+    expect(verbose).toContain("DEBUG test/o/a: unchanged");
+    expect(verbose).toContain("DEBUG test/o/empty: skipped: empty");
+
+    const plain = setup(repos);
+    await plain.backup();
+    plain.err.length = 0;
+    await plain.backup();
+    expect(plain.err.join("\n")).toContain("INFO  test/o/a: unchanged");
+    expect(plain.err.join("\n")).toContain("INFO  test/o/empty: skipped: empty");
+  });
+
+  it("counts no bytes for an unchanged run", async () => {
+    const a = new TestRemote(root, "a", home);
+    a.commit("a.txt", "1");
+    const { backup } = setup([repoInfo("o/a", a)]);
+    expect((await backup("--json")).json?.summary.bytes).toBeGreaterThan(0);
+    expect((await backup("--json")).json?.summary.bytes).toBe(0);
+  });
+
+  it("removes the activity line before a failed check is reported", async () => {
+    const { events, createProgress } = recordingProgress();
+    const { backup } = setup([], {
+      createProgress,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "--version") throw new Error("no git");
+        return { stdout: "", stderr: "" };
+      },
+    });
+
+    await backup();
+
+    expect(events).toEqual(["activity Checking tools", "stop"]);
+  });
+
   it("draws no progress with --quiet", async () => {
     const a = new TestRemote(root, "a", home);
     a.commit("a.txt", "1");
@@ -177,8 +243,12 @@ describe("backup", () => {
       unchanged: 0,
       skipped: 0,
       failed: 1,
+      bytes: expect.any(Number),
+      durationMs: expect.any(Number),
       interrupted: false,
     });
+    expect(json?.summary.bytes).toBeGreaterThan(0);
+    expect(json?.summary.durationMs).toBeGreaterThanOrEqual(0);
     expect(json?.failures.map((f) => f.repo)).toEqual(["test/o/broken"]);
     expect(list("test/o/a")).toHaveLength(2);
     expect(list("test/o/b")).toHaveLength(2);
@@ -315,7 +385,7 @@ describe("backup", () => {
       createSource: () => fakeSource([]),
     }).run(["backup", "--cache-dir", path.join(root, "cache")]);
     expect(code).toBe(ExitCode.Usage);
-    expect(err.join("\n")).toContain("no targets configured; use --local <path>");
+    expect(err.join("\n")).toContain("no targets configured; use --to <path>");
   });
 
   it("never touches the global git config", async () => {
@@ -343,5 +413,49 @@ describe("backup", () => {
     expect((await backup()).code).toBe(0);
     expect(waits).toEqual([1000, 5000]);
     expect(list("test/o/a")).toHaveLength(2);
+  });
+});
+
+describe("renderSummary", () => {
+  const summary = (extra: Partial<Summary> = {}): Summary => ({
+    ok: 9,
+    unchanged: 5,
+    skipped: 1,
+    failed: 0,
+    bytes: 0,
+    results: [],
+    interrupted: false,
+    ...extra,
+  });
+
+  it("shows the duration and counts, and the size written when there is one", () => {
+    expect(renderSummary(summary(), [], 252_000)).toEqual([
+      "Backup finished in 4m 12s: 9 backed up, 5 unchanged, 1 skipped, 0 failed",
+    ]);
+    const bytes = Math.round(1.2 * 1024 ** 3);
+    expect(renderSummary(summary({ failed: 2, bytes }), [], 252_000)[0]).toBe(
+      "Backup finished in 4m 12s: 9 backed up, 5 unchanged, 1 skipped, 2 failed, 1.2 GB written",
+    );
+  });
+
+  it("paints the prefixes and leaves the messages alone", () => {
+    const failed: Summary["results"][number] = {
+      key: "github/acme/app",
+      kind: "repo",
+      status: "failed",
+      error: "boom",
+      targets: [],
+    };
+    const lines = renderSummary(
+      summary({ failed: 1, results: [failed], interrupted: true }),
+      [{ owner: "ghost", message: "not found" }],
+      0,
+      ansi,
+    );
+    expect(lines.slice(1)).toEqual([
+      `  ${ansi("red", "failed: ")}github/acme/app: boom`,
+      `  ${ansi("red", "not listed: ")}ghost: not found`,
+      ansi("yellow", "Interrupted before all repositories were processed."),
+    ]);
   });
 });

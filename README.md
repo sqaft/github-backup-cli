@@ -33,56 +33,104 @@ Without `npm link`, run `node dist/cli.js` instead of `github-backup`.
 ## Quick start
 
 ```sh
-github-backup list                              # which repositories would be backed up
-github-backup backup --local ~/backups          # back them all up to a directory
-github-backup backup --local ~/backups          # run again: unchanged repositories are skipped
+github-backup setup                  # choose where backups go
+github-backup doctor                 # check tools, GitHub sign-in and target access
+github-backup repos                  # which repositories would be backed up
+github-backup backup                 # back them all up
+github-backup snapshots acme/app     # what is stored for one repository
 ```
 
 The first run mirrors every repository into the cache directory (`~/.cache/github-backup-cli`) and writes one snapshot per repository. Later runs fetch only what changed.
 
-To keep your targets in a config file, run `github-backup backup` without `--local`: when the config file is missing, it asks where backups should go, saves the file and continues (see [First-run setup](#first-run-setup)).
+To try it without a config file, pass a directory: `github-backup backup --to ~/backups`. Running `backup` again skips unchanged repositories.
 
 ## Commands
 
 ```text
-github-backup list   [options]
-github-backup backup [options]
+github-backup setup                    create the config file or add a target
+github-backup doctor                   check tools, GitHub sign-in and target access
+github-backup repos                    list the repositories that would be backed up
+github-backup backup                   back up repositories to the targets
+github-backup snapshots <owner/repo>   list a repository's snapshots on each target
 ```
+
+`github-backup` without a command prints the help to stderr and exits with code 2.
 
 | Flag | Commands | Meaning |
 | --- | --- | --- |
-| `--config <path>` | both | Config file. Default `~/.config/github-backup-cli/config.json` (`$XDG_CONFIG_HOME/github-backup-cli/config.json` if set). |
-| `--include <glob>` | both | Only repositories whose `owner/repo` matches the glob. Repeatable. Default `*/*`. |
-| `--exclude <glob>` | both | Skip repositories matching the glob. Repeatable. Applied after `--include`. |
-| `--no-archived` | both | Skip archived repositories. |
-| `--no-forks` | both | Skip forks. |
-| `--json` | both | Machine-readable output on stdout (`list`: the repositories; `backup`: the run summary). |
-| `--verbose` | both | Also log git commands and details. Cannot be combined with `--quiet`. |
-| `--quiet` | both | Log only errors and the final summary. Also hides the `backup` progress bar. |
+| `-c`, `--config <path>` | all | Config file. Default `~/.config/github-backup-cli/config.json` (`$XDG_CONFIG_HOME/github-backup-cli/config.json` if set). |
+| `--json` | all but `setup` | Machine-readable output on stdout (`repos`: the repositories; `backup`: the run summary; `doctor`: the checks; `snapshots`: the snapshots). |
+| `-v`, `--verbose` | all but `setup` | Also log git commands and details. Cannot be combined with `--quiet`. |
+| `-q`, `--quiet` | all but `setup` | Log only errors and the final summary. Also hides the `backup` progress block. |
+| `-i`, `--include <glob>` | `repos`, `backup` | Only repositories whose `owner/repo` matches the glob. Repeatable. Default `*/*`. |
+| `-e`, `--exclude <glob>` | `repos`, `backup` | Skip repositories matching the glob. Repeatable. Applied after `--include`. |
+| `--no-archived` | `repos`, `backup` | Skip archived repositories. |
+| `--no-forks` | `repos`, `backup` | Skip forks. |
 | `--cache-dir <dir>` | `backup` | Directory for mirrors and temporary files. Default `~/.cache/github-backup-cli`. |
 | `--concurrency <n>` | `backup` | Repositories processed in parallel (1-64). Default 4. |
 | `--keep <n>` | `backup` | Snapshots kept per repository and target. Default 7; a target's own `keep` wins. |
 | `--no-wiki` | `backup` | Skip wikis. |
-| `--no-lfs` | `backup` | Skip Git LFS objects (also skips the `git-lfs` check). |
-| `--target <name>` | `backup` | Run only the configured target with this name. Repeatable. |
-| `--local <path>` | `backup` | Add a temporary `local` target named `local` at this directory. |
+| `--no-lfs` | `backup`, `doctor` | Skip Git LFS objects (also skips the `git-lfs` check). |
+| `-t`, `--target <name>` | `backup`, `doctor`, `snapshots`, `setup` | Use only the configured target with this name. Repeatable. With `setup`, offers this name for the new target. |
+| `--to <path>` | `backup`, `doctor`, `snapshots` | Add a temporary local target named `local` at this directory. |
 
 `--no-archived`, `--no-forks`, `--no-wiki` and `--no-lfs` override the environment and the config file only when you type them.
 
-`list` prints a table (`REPO`, `ARCHIVED`, `FORK`, `WIKI`, `EMPTY`) and a total. `backup` writes log lines to stderr, a summary at the end, and with `--json` a machine-readable summary to stdout. Without any target (`--local` or a configured one) `backup` exits with code 2, unless [first-run setup](#first-run-setup) can ask for one.
+`repos` prints a table (`REPO`, `ARCHIVED`, `FORK`, `WIKI`, `EMPTY`) and a total. `backup` writes log lines to stderr, a summary at the end, and with `--json` a machine-readable summary to stdout. The summary shows the duration, the counts and the bytes written; a snapshot written to two targets counts twice. Without any target (`--to` or a configured one) `backup` exits with code 2, unless [first-run setup](#first-run-setup) can ask for one.
+
+### Checking the setup
+
+`doctor` runs every check `backup` depends on without backing anything up, and reports all of them instead of stopping at the first problem. It writes nothing and does not list repositories. It exits with code 2 if a check failed.
+
+```text
+$ github-backup doctor
+✓ config: /home/me/.config/github-backup-cli/config.json
+✓ git
+✓ git-lfs
+✓ github
+✓ target disk
+✗ target r2: cannot access bucket "my-backups": Forbidden (HTTP 403)
+```
+
+### Listing snapshots
+
+`snapshots <owner/repo>` shows what each target stores for one repository, newest first. Use `<owner/repo>.wiki` for a wiki. It reads only the targets, so it needs neither `gh` nor GitHub access and also finds repositories that were deleted on GitHub. It exits with code 1 if a target could not be read; the other targets are still shown.
+
+```text
+$ github-backup snapshots acme/app
+TARGET  STAMP             SIZE    REFS
+disk    20261104T023000Z  184 MB  42
+disk    20261103T023000Z  183 MB  41
+r2      20261104T023000Z  184 MB  42
+
+3 snapshots
+```
+
+Repository names are matched exactly, including upper and lower case. When nothing is found, a warning names the targets that were searched and the exit code stays 0.
 
 ### Progress
 
-When stderr is a terminal, `backup` draws a progress block below the log lines:
+When stderr is a terminal, `backup`, `repos`, `doctor` and `snapshots` show what they are working on while you wait, on a single line with a spinner and, after the first second, the running time:
 
 ```text
-[█████████████░░░░░░░░░░░░░░░░░] 16/40 44%  ok 9 · unchanged 5 · failed 2
+⠹ Listing repositories...  12s
+```
+
+Listing repositories through `gh` can take a while with many organizations. Once it is done, `backup` replaces the line with a progress block below the log lines:
+
+```text
+[█████████████░░░░░░░░░░░░░░░░░] 16/40 44%  2m 13s  ~2m 49s left
+  backed up 9 · unchanged 5 · failed 2
   fetching             [█████░░░░░░░] 45%  github/acme/api  12s
   bundling             [██████████░░] 83%  github/acme/web  1m 4s
   writing to offsite   [███░░░░░░░░░] 27%  github/acme/web.wiki  3s
 ```
 
-The first line shows how many repositories and wikis have finished. Its bar and percentage also include the work done so far on the ones in flight, and every repository or wiki weighs the same, whatever its size. Each line below it is one repository or wiki in flight, with its current step, how far that step is and how long the repository or wiki has been running. Fetching, bundling and writing to S3 report a percentage; other steps, such as LFS transfers and writing to a local target, show only their name. The block disappears before the summary is printed. It is not drawn with `--quiet`, when stderr is redirected (cron, launchd, files), or on a `TERM=dumb` terminal.
+The first line shows how many repositories and wikis have finished, the elapsed time and, once there is enough to go on, a rough estimate of the time left. The bar, percentage and estimate also include the work done so far on the ones in flight, and every repository or wiki weighs the same, whatever its size. The second line counts the results so far. Each line below it is one repository or wiki in flight, with its current step, how far that step is and how long the repository or wiki has been running. Fetching, bundling and writing to S3 report a percentage; other steps, such as LFS transfers and writing to a local target, show only their name. The block disappears before the summary is printed. Neither the line nor the block is drawn with `--quiet`, when stderr is redirected (cron, launchd, files), or on a `TERM=dumb` terminal. With `--json` they stay on stderr, so stdout remains clean.
+
+While the block is drawn, unchanged and skipped repositories are not logged one by one (`--verbose` shows them); written snapshots, warnings and errors are.
+
+The block, log lines and summary use color on a terminal. `NO_COLOR` turns it off.
 
 ### Exit codes
 
@@ -90,7 +138,7 @@ The first line shows how many repositories and wikis have finished. Its bar and 
 | --- | --- |
 | `0` | Success (unchanged and skipped repositories count as success). |
 | `1` | At least one repository, wiki, target or repository owner failed; the others were still backed up. |
-| `2` | Configuration, flag or prerequisite error (missing tool, `gh` not signed in, bucket not reachable, no target). |
+| `2` | Configuration, flag or prerequisite error (missing tool, `gh` not signed in, bucket not reachable, no target), a missing command, or a failed `doctor` check. |
 | `3` | Another `backup` run is in progress (lock in the cache directory). |
 | `130` | Interrupted by SIGINT/SIGTERM (running git processes are stopped and the lock is released), or first-run setup was cancelled. |
 
@@ -98,15 +146,17 @@ A lock file (`<cacheDir>/.lock`, containing the PID) prevents overlapping runs; 
 
 ## First-run setup
 
-When `backup` runs at a terminal without `--local` and the config file does not exist, it asks for one or more targets instead of failing:
+`github-backup setup` asks for one or more targets at the terminal:
 
 - The storage: an S3-compatible bucket (Cloudflare R2, AWS S3, Backblaze B2 or another service) or a local directory.
 - The target name, offering the `--target` value if you passed one.
 - For S3: the provider's connection details, the bucket, a key prefix (default `git`) and the access keys. The secret access key is not shown while you type.
 
-Every S3 target is checked with the same bucket check `backup` uses; if it fails, you see the reason and can enter the settings again. The answers are saved to the config file path (`--config`, `GHBACKUP_CONFIG` or the default) with mode `600`, and the backup continues in the same run. Ctrl-C saves nothing and exits with code 130.
+Every target is checked with the same access check `backup` uses; if it fails, you see the reason and can enter the settings again. The answers are saved to the config file path (`--config`, `GHBACKUP_CONFIG` or the default) with mode `600`. Ctrl-C saves nothing and exits with code 130.
 
-Setup writes only `targets`; everything else keeps its default until you edit the file. It runs only when both stdin and stderr are terminals, so cron and launchd jobs never wait for an answer: they exit with code 2 and the error names the missing config file. An existing config file is never changed, and `list` and `backup --local <path>` do not ask.
+If the config file already exists, `setup` adds the new targets to it and keeps every other field. If it does not, `setup` writes only `targets`; everything else keeps its default until you edit the file.
+
+`backup` runs the same questions when it starts at a terminal without `--to` and the config file does not exist, then continues in the same run. `setup` needs a terminal, and `backup` asks only when both stdin and stderr are terminals, so cron and launchd jobs never wait for an answer: they exit with code 2 and the error names the missing config file. `backup` never changes an existing config file, and `repos`, `doctor`, `snapshots` and `backup --to <path>` do not ask.
 
 ## Configuration
 
@@ -158,7 +208,7 @@ The schema is strict: an unknown field is an error, and the message names the fi
 | `lfs` | `true` | `GHBACKUP_LFS` | `--no-lfs` |
 | `keep` (positive integer) | `7` | `GHBACKUP_KEEP` | `--keep` |
 | `sources` | one `github` source with the defaults below | - | - |
-| `targets` | none | `GHBACKUP_TARGETS` (names to run, comma separated) | `--target`, `--local` |
+| `targets` | none | `GHBACKUP_TARGETS` (names to run, comma separated) | `--target`, `--to` |
 
 Other environment variables: `GHBACKUP_CONFIG` (config file path, same as `--config`), `GHBACKUP_INCLUDE` and `GHBACKUP_EXCLUDE` (comma-separated globs), `GHBACKUP_S3_ACCESS_KEY_ID` and `GHBACKUP_S3_SECRET_ACCESS_KEY` (see [S3 targets](#s3-targets)). Booleans accept `true`, `false`, `1` and `0`. Empty variables are ignored.
 

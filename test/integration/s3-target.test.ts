@@ -107,6 +107,20 @@ describe.skipIf(!endpoint)("s3 target (integration)", () => {
     await target.checkAccess?.();
   });
 
+  it("reads one manifest and returns null for a missing or unparsable one", async () => {
+    const target = makeTarget();
+    await target.putSnapshot(KEY, "20260101T000000Z", {
+      ...files(),
+      manifest: manifest("20260101T000000Z", "one"),
+    });
+    await put(`${prefix}/${KEY}/20260102T000000Z.json`, "{not json");
+    expect(await target.readManifest(KEY, "20260101T000000Z")).toEqual(
+      manifest("20260101T000000Z", "one"),
+    );
+    expect(await target.readManifest(KEY, "20260102T000000Z")).toBeNull();
+    expect(await target.readManifest(KEY, "20260103T000000Z")).toBeNull();
+  });
+
   it("stores bundle, lfs.tar and manifest under the shared layout", async () => {
     const target = makeTarget();
     await target.putSnapshot(KEY, "20260101T000000Z", {

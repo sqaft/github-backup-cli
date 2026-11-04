@@ -1,3 +1,5 @@
+import { type Paint, plain, type Style } from "./color.js";
+
 export type LogLevel = "quiet" | "normal" | "verbose";
 
 type Severity = "error" | "warn" | "info" | "debug";
@@ -18,7 +20,11 @@ export interface LoggerOptions {
   level: LogLevel;
   write?: (line: string) => void;
   now?: () => Date;
+  /** Colors the time and the level label. Without it lines are plain text. */
+  paint?: Paint;
 }
+
+const LABEL_STYLE: Partial<Record<Severity, Style>> = { error: "red", warn: "yellow" };
 
 const SHOWN: Record<LogLevel, readonly Severity[]> = {
   quiet: ["error"],
@@ -37,6 +43,7 @@ export function formatTime(date: Date): string {
 export function createLogger(options: LoggerOptions): Logger {
   const write = options.write ?? ((line: string) => process.stderr.write(`${line}\n`));
   const now = options.now ?? (() => new Date());
+  const paint = options.paint ?? plain;
   const secrets = new Set<string>();
 
   const mask = (text: string): string => {
@@ -49,7 +56,9 @@ export function createLogger(options: LoggerOptions): Logger {
     if (!SHOWN[options.level].includes(severity)) return;
     const label = severity.toUpperCase().padEnd(5);
     const prefix = scope ? `${scope}: ` : "";
-    write(mask(`[${formatTime(now())}] ${label} ${prefix}${message}`));
+    const style = LABEL_STYLE[severity];
+    const time = paint("dim", `[${formatTime(now())}]`);
+    write(mask(`${time} ${style ? paint(style, label) : label} ${prefix}${message}`));
   };
 
   return {

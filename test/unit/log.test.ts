@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ansi } from "../../src/util/color.js";
 import { createLogger, type LogLevel } from "../../src/util/log.js";
 
 function setup(level: LogLevel) {
@@ -47,5 +48,36 @@ describe("logger", () => {
     logger.info("key=s3cr3t and again s3cr3t");
     logger.summary("s3cr3t");
     expect(lines).toEqual(["[08:05:09] INFO  key=*** and again ***", "***"]);
+  });
+
+  it("colors the time and the ERROR and WARN labels, keeping the padding", () => {
+    const lines: string[] = [];
+    const logger = createLogger({
+      level: "verbose",
+      write: (line) => lines.push(line),
+      now: () => new Date(2026, 9, 14, 8, 5, 9),
+      paint: ansi,
+    });
+    emitAll(logger);
+    const time = ansi("dim", "[08:05:09]");
+    expect(lines).toEqual([
+      `${time} ${ansi("red", "ERROR")} e`,
+      `${time} ${ansi("yellow", "WARN ")} w`,
+      `${time} INFO  i`,
+      `${time} DEBUG d`,
+    ]);
+  });
+
+  it("masks secrets in painted lines", () => {
+    const lines: string[] = [];
+    const logger = createLogger({
+      level: "normal",
+      write: (line) => lines.push(line),
+      paint: ansi,
+    });
+    logger.addSecret("s3cr3t");
+    logger.error("key=s3cr3t", "github/acme/app");
+    expect(lines[0]).toContain(`${ansi("red", "ERROR")} github/acme/app: key=***`);
+    expect(lines[0]).not.toContain("s3cr3t");
   });
 });
