@@ -19,18 +19,18 @@ The goal is an independent, restorable copy of your complete git history in case
 ## Install
 
 ```sh
-npm install -g github-backup-cli
+npm install -g @sqaft/github-backup-cli
 ```
 
 Or run it without installing:
 
 ```sh
-npx github-backup-cli backup --to ~/backups
+npx @sqaft/github-backup-cli backup --to ~/backups
 ```
 
-The package is called `github-backup-cli` and the command it installs is `github-backup`. Without a global install, replace `github-backup` with `npx github-backup-cli` in the examples below: `npx github-backup` would run an unrelated npm package with that name.
+The package is called `@sqaft/github-backup-cli` and the command it installs is `github-backup`. Without a global install, replace `github-backup` with `npx @sqaft/github-backup-cli` in the examples below: `npx github-backup` would run an unrelated npm package with that name.
 
-Scheduled backups need the global install. To update it, run `npm install -g github-backup-cli@latest`.
+Scheduled backups need the global install. To update it, run `npm install -g @sqaft/github-backup-cli@latest`.
 
 ## Quick start
 

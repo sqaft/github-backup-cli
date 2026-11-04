@@ -20,7 +20,7 @@ GitHub repolarını (wiki ve LFS dahil) yerel diske ve S3 uyumlu depolamaya git 
 
 ## Yayın
 
-- npm paketi `github-backup-cli`, kurduğu komut `github-backup`. Pakette tek `bin` kalmalı: `npx github-backup-cli` buna dayanır. npm'deki `github-backup` başka birinin paketidir.
+- npm paketi `@sqaft/github-backup-cli` (`publishConfig.access: public`), kurduğu komut `github-backup`. Pakette tek `bin` kalmalı: `npx @sqaft/github-backup-cli` buna dayanır. npm'deki `github-backup` başka birinin paketidir.
 - Pakete yalnızca `dist/`, `config.example.json`, README, LICENSE ve `package.json` girer (`files`). `prepack`, `npm run build` ile `dist/`'i sıfırdan üretir.
 - Yayın, GitHub Actions'taki `Publish` workflow'u (`.github/workflows/publish.yml`) elle tetiklenerek yapılır; `bump` girdisi `patch`, `minor` veya `major` olur. Workflow önce CI'ı çalıştırır, sonra yeni sürümü npm'deki son sürümden hesaplar ve npm trusted publishing ile yayınlar. Commit ve tag üretmez.
 - Yayınlanan sürümün kaynağı npm'dir; `package.json`'daki `version` güncel sürümü göstermez.

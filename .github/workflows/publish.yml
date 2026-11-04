@@ -40,6 +40,6 @@ jobs:
         env:
           BUMP: ${{ inputs.bump }}
         run: |
-          npm version "$(npm view github-backup-cli version)" --no-git-tag-version --allow-same-version
+          npm version "$(npm view @sqaft/github-backup-cli version)" --no-git-tag-version --allow-same-version
           npm version "$BUMP" --no-git-tag-version
       - run: npm publish

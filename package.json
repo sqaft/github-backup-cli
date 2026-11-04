@@ -1,5 +1,5 @@
 {
-  "name": "github-backup-cli",
+  "name": "@sqaft/github-backup-cli",
   "version": "0.1.0",
   "description": "Back up GitHub repositories (with wikis and LFS) to local disk and S3-compatible storage as git bundle snapshots.",
   "keywords": [
@@ -29,6 +29,9 @@
   },
   "bin": {
     "github-backup": "dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist",
