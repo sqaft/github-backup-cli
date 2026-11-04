@@ -13,6 +13,11 @@ GitHub repolarını (wiki ve LFS dahil) yerel diske ve S3 uyumlu depolamaya git 
 
 - Gerekmiyor: proje HTTP API sunmuyor.
 
+## Derleme
+
+- `node dist/cli.js` derlenmiş çıktıyı çalıştırır; `dist/` git'e girmez ve kendiliğinden güncellenmez.
+- `.claude/settings.json` içindeki `Stop` hook'u, Claude Code bir turu bitirdiğinde `src/` veya tsconfig dosyaları `dist/cli.js`'ten yeniyse `npm run build` çalıştırır. Elle yapılan değişikliklerde `npm run build` gerekir ya da `npm run dev` kullanılır.
+
 ## Birlikte güncellenmesi gereken dosyalar
 
 - Config şeması (`src/config/schema.ts`) değişirse: `config.example.json`, kök `README.md` config referansı.

@@ -17,6 +17,7 @@ All four must pass before a change is merged; CI runs them on Node 22 and 24. Yo
 - The core (`src/core`) knows nothing about a specific source or target type. Type-specific code lives only in `src/sources/*` and `src/targets/*`.
 - Call external programs only through `Exec` from `src/util/exec.ts`, with an argument array (no shell). Modules take `exec` as a dependency so tests can pass a fake.
 - Never change the user's global git config. Authentication for git child processes goes through the environment returned by `Source.gitEnv()`.
+- Write run output only through the `Logger`, never `console.*` or `process.stderr`: during a backup the progress block owns stderr, and a direct write corrupts it.
 - Never log tokens or access keys, and keep them out of error messages. Register secrets with the logger (`log.addSecret`) and strip credentials from URLs in messages.
 - New behavior comes with tests. Test git operations against real temporary repositories (`test/helpers/git.ts`: `TestRemote`, `fakeSource`, `isolatedExec`), and pure logic with table-driven unit tests.
 - Code, comments, the README and commit messages are in English.

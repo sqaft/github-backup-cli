@@ -5,6 +5,7 @@ import type { Target } from "../targets/types.js";
 import { runPool, withRetry } from "../util/async.js";
 import type { Exec } from "../util/exec.js";
 import type { Logger } from "../util/log.js";
+import type { ProgressReporter } from "../util/progress.js";
 import { formatStamp, sleep } from "../util/time.js";
 import type { ToolInfo } from "../util/tool.js";
 import { createGit } from "./git.js";
@@ -60,6 +61,8 @@ export interface BackupContext {
   exec: Exec;
   log: Logger;
   tool: ToolInfo;
+  /** Told about every unit and the phase it is in. */
+  progress?: ProgressReporter;
   signal?: AbortSignal;
   now?: () => Date;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -117,7 +120,7 @@ async function processUnit(
   input: BackupInput,
   ctx: BackupContext,
 ): Promise<UnitResult> {
-  const { log } = ctx;
+  const { log, progress } = ctx;
   if (unit.skip !== undefined) {
     log.info(`skipped: ${unit.skip}`, unit.key);
     return finish(unit, "skipped", [], { reason: unit.skip });
@@ -145,6 +148,7 @@ async function processUnit(
   let tmpDir: string | undefined;
 
   try {
+    progress?.phase(unit.key, "fetching");
     const mirror = await retry(() =>
       syncMirror(git, { mirrorDir: unit.mirrorDir, url, kind: unit.kind }),
     );
@@ -153,6 +157,7 @@ async function processUnit(
       return finish(unit, "skipped", [], { reason: mirror.reason });
     }
 
+    progress?.phase(unit.key, "checking targets");
     const refs = await listRefs(git, unit.mirrorDir);
     if (refs.length === 0) {
       log.info("skipped: empty", unit.key);
@@ -176,6 +181,7 @@ async function processUnit(
     }
 
     if (pending.length > 0) {
+      progress?.phase(unit.key, "bundling");
       tmpDir = await mkdtemp(path.join(input.cacheDir, "tmp", "unit-"));
       const bundle = path.join(tmpDir, "snapshot.bundle");
       const bundleBytes = await retry(() => createBundle(git, unit.mirrorDir, bundle));
@@ -183,8 +189,10 @@ async function processUnit(
       let lfsTarBytes: number | undefined;
       // LFS objects belong to refs, so they are only fetched when a new snapshot is due.
       if (input.lfs && unit.kind === "repo") {
+        progress?.phase(unit.key, "fetching LFS");
         await retry(() => fetchLfs(git, unit.mirrorDir));
         if (await hasLfsObjects(unit.mirrorDir)) {
+          progress?.phase(unit.key, "archiving LFS");
           lfsTar = path.join(tmpDir, "snapshot.lfs.tar");
           const file = lfsTar;
           lfsTarBytes = await retry(() => createLfsTar(unit.mirrorDir, file));
@@ -202,6 +210,7 @@ async function processUnit(
       });
       for (const target of pending) {
         try {
+          progress?.phase(unit.key, `writing to ${target.name}`);
           await retry(() =>
             target.putSnapshot(unit.key, stamp, {
               bundle,
@@ -209,6 +218,7 @@ async function processUnit(
               manifest,
             }),
           );
+          progress?.phase(unit.key, `pruning ${target.name}`);
           await retry(() => applyRetention(target, unit.key));
           results.push({ target: target.name, status: "created", stamp });
           log.info(`snapshot ${stamp} written to ${target.name}`, unit.key);
@@ -236,6 +246,13 @@ async function processUnit(
   }
 }
 
+async function trackUnit(unit: Unit, input: BackupInput, ctx: BackupContext): Promise<UnitResult> {
+  ctx.progress?.unitStart(unit.key);
+  const result = await processUnit(unit, input, ctx);
+  ctx.progress?.unitDone(unit.key, result.status);
+  return result;
+}
+
 export function summarize(results: UnitResult[], interrupted: boolean): Summary {
   const count = (status: UnitStatus) => results.filter((r) => r.status === status).length;
   return {
@@ -255,10 +272,12 @@ export async function backupRepos(input: BackupInput, ctx: BackupContext): Promi
   await rm(tmpRoot, { recursive: true, force: true });
   await mkdir(tmpRoot, { recursive: true });
   try {
+    const units = planUnits(input);
+    ctx.progress?.start(units.length);
     const results = await runPool(
-      planUnits(input),
+      units,
       input.concurrency,
-      (unit) => processUnit(unit, input, ctx),
+      (unit) => trackUnit(unit, input, ctx),
       ctx.signal,
     );
     return summarize(results, ctx.signal?.aborted ?? false);

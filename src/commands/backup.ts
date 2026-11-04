@@ -81,7 +81,8 @@ export function renderJson(summary: Summary, listFailures: ListFailure[]): strin
 /** `github-backup backup`. Returns the process exit code. */
 export async function runBackup(options: BackupOptions, deps: CommandDeps): Promise<number> {
   await setupMissingConfig(options, deps);
-  const { loaded, log } = prepare(options, deps);
+  const progress = options.quiet ? undefined : deps.createProgress?.();
+  const { loaded, log } = prepare(options, progress ? { ...deps, stderr: progress.log } : deps);
   const { config } = loaded;
   if (config.targets.length === 0) {
     throw new ConfigError(
@@ -127,12 +128,14 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
         exec: deps.exec,
         log,
         tool: readToolInfo(),
+        progress,
         signal: controller.signal,
         now: deps.now,
         sleep: deps.sleep,
         retryDelaysMs: deps.retryDelaysMs,
       },
     );
+    progress?.stop();
 
     for (const line of renderSummary(summary, discovery.failures)) log.summary(line);
     if (options.json) deps.stdout(`${renderJson(summary, discovery.failures)}\n`);
@@ -142,6 +145,7 @@ export async function runBackup(options: BackupOptions, deps: CommandDeps): Prom
       ? ExitCode.PartialFailure
       : ExitCode.Success;
   } finally {
+    progress?.stop();
     lock?.release();
     deps.signal?.removeEventListener("abort", abort);
     process.removeListener("SIGINT", abort);

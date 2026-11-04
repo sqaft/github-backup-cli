@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && if [ ! -f dist/cli.js ] || [ -n \"$(find src tsconfig.json tsconfig.build.json -newer dist/cli.js 2>/dev/null | head -1)\" ]; then npm run build --silent >/dev/null 2>&1 || echo '{\"systemMessage\":\"npm run build failed: dist is stale\"}'; fi",
+            "timeout": 120,
+            "statusMessage": "Rebuilding dist"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import type { CommandDeps } from "../../src/commands/context.js";
 import { createProgram } from "../../src/program.js";
 import type { RepoInfo } from "../../src/sources/types.js";
 import { ExitCode } from "../../src/util/errors.js";
+import type { ProgressDisplay } from "../../src/util/progress.js";
 import { fakeSource, isolatedExec, makeTempDir, repoInfo, TestRemote } from "../helpers/git.js";
 
 interface Json {
@@ -62,7 +63,73 @@ const snapshotDir = (key: string) => path.join(root, "out", key);
 const list = (key: string) =>
   existsSync(snapshotDir(key)) ? readdirSync(snapshotDir(key)).sort() : [];
 
+/** A display that records calls, in order, instead of drawing. */
+function recordingProgress() {
+  const events: string[] = [];
+  const display: ProgressDisplay = {
+    start: (total) => events.push(`start ${total}`),
+    unitStart: (key) => events.push(`unitStart ${key}`),
+    phase: (key, label) => events.push(`phase ${key} ${label}`),
+    unitDone: (key, status) => events.push(`unitDone ${key} ${status}`),
+    log: (line) => events.push(`log ${line}`),
+    stop: () => events.push("stop"),
+  };
+  return { events, createProgress: () => display };
+}
+
 describe("backup", () => {
+  it("reports every unit from start to done, whatever its outcome", async () => {
+    const a = new TestRemote(root, "a", home);
+    a.commit("a.txt", "1");
+    const broken = { url: `file://${path.join(root, "missing.git")}` };
+    const { events, createProgress } = recordingProgress();
+    const { backup, err } = setup(
+      [repoInfo("o/a", a), repoInfo("o/broken", broken), repoInfo("o/empty", a, { isEmpty: true })],
+      { createProgress },
+    );
+
+    await backup("--concurrency", "1");
+
+    const reported = events.filter((event) => !event.startsWith("log "));
+    expect(reported).toEqual([
+      "start 3",
+      "unitStart test/o/a",
+      "phase test/o/a fetching",
+      "phase test/o/a checking targets",
+      "phase test/o/a bundling",
+      "phase test/o/a fetching LFS",
+      "phase test/o/a writing to local",
+      "phase test/o/a pruning local",
+      "unitDone test/o/a ok",
+      "unitStart test/o/broken",
+      "phase test/o/broken fetching",
+      "unitDone test/o/broken failed",
+      "unitStart test/o/empty",
+      "unitDone test/o/empty skipped",
+      "stop",
+      "stop",
+    ]);
+    // Log lines go through the display, and the summary comes after the block is gone.
+    expect(events.some((event) => event.includes("INFO"))).toBe(true);
+    expect(err.join("\n")).not.toContain("INFO");
+    const lastStop = events.lastIndexOf("stop");
+    const firstStop = events.indexOf("stop");
+    expect(lastStop).toBeGreaterThan(firstStop);
+    expect(events.slice(firstStop + 1, lastStop).join("\n")).toContain("Backup finished");
+  });
+
+  it("draws no progress with --quiet", async () => {
+    const a = new TestRemote(root, "a", home);
+    a.commit("a.txt", "1");
+    const { events, createProgress } = recordingProgress();
+    const { backup, err } = setup([repoInfo("o/a", a)], { createProgress });
+
+    await backup("--quiet");
+
+    expect(events).toEqual([]);
+    expect(err.join("\n")).toContain("Backup finished");
+  });
+
   it("backs up good repositories, fails the broken one and exits 1", async () => {
     const a = new TestRemote(root, "a", home);
     a.commit("a.txt", "1");

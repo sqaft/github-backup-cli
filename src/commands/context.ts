@@ -5,6 +5,7 @@ import type { Target } from "../targets/types.js";
 import { ConfigError } from "../util/errors.js";
 import type { Exec } from "../util/exec.js";
 import { createLogger, type Logger, type LogLevel } from "../util/log.js";
+import type { ProgressDisplay } from "../util/progress.js";
 import type { Prompter } from "../util/prompt.js";
 
 /** Everything a command needs from the outside world; replaced in tests. */
@@ -21,6 +22,8 @@ export interface CommandDeps {
   createTarget?: (config: TargetConfig, options: { keep: number }) => Target;
   /** Present only when a person can answer questions at a terminal. */
   createPrompter?: () => Prompter;
+  /** Present only when a progress bar can be drawn on a terminal. */
+  createProgress?: () => ProgressDisplay;
   /** Aborts a running backup, like SIGINT does. */
   signal?: AbortSignal;
   /** Clock and waiting, replaced in tests. */

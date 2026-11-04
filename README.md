@@ -58,7 +58,7 @@ github-backup backup [options]
 | `--no-forks` | both | Skip forks. |
 | `--json` | both | Machine-readable output on stdout (`list`: the repositories; `backup`: the run summary). |
 | `--verbose` | both | Also log git commands and details. Cannot be combined with `--quiet`. |
-| `--quiet` | both | Log only errors and the final summary. |
+| `--quiet` | both | Log only errors and the final summary. Also hides the `backup` progress bar. |
 | `--cache-dir <dir>` | `backup` | Directory for mirrors and temporary files. Default `~/.cache/github-backup-cli`. |
 | `--concurrency <n>` | `backup` | Repositories processed in parallel (1-64). Default 4. |
 | `--keep <n>` | `backup` | Snapshots kept per repository and target. Default 7; a target's own `keep` wins. |
@@ -70,6 +70,19 @@ github-backup backup [options]
 `--no-archived`, `--no-forks`, `--no-wiki` and `--no-lfs` override the environment and the config file only when you type them.
 
 `list` prints a table (`REPO`, `ARCHIVED`, `FORK`, `WIKI`, `EMPTY`) and a total. `backup` writes log lines to stderr, a summary at the end, and with `--json` a machine-readable summary to stdout. Without any target (`--local` or a configured one) `backup` exits with code 2, unless [first-run setup](#first-run-setup) can ask for one.
+
+### Progress
+
+When stderr is a terminal, `backup` draws a progress block below the log lines:
+
+```text
+[████████████░░░░░░░░░░░░░░░░░░] 16/40 40%  ok 9 · unchanged 5 · failed 2
+  fetching             github/acme/api  12s
+  bundling             github/acme/web  1m 4s
+  writing to offsite   github/acme/web.wiki  3s
+```
+
+The first line counts finished repositories and wikis. Each line below it is one repository or wiki in flight, with its current step and how long it has been running. The block disappears before the summary is printed. It is not drawn with `--quiet`, when stderr is redirected (cron, launchd, files), or on a `TERM=dumb` terminal.
 
 ### Exit codes
 

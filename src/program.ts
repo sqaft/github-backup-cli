@@ -4,6 +4,7 @@ import type { CommandDeps, CommonOptions } from "./commands/context.js";
 import { runList } from "./commands/list.js";
 import { CliError, ExitCode } from "./util/errors.js";
 import { exec } from "./util/exec.js";
+import { createStderrProgress } from "./util/progress.js";
 import { createTerminalPrompter } from "./util/prompt.js";
 import { readToolInfo } from "./util/tool.js";
 
@@ -121,5 +122,8 @@ export function defaultDeps(): CommandDeps {
     stderr: (line) => process.stderr.write(`${line}\n`),
     createPrompter:
       process.stdin.isTTY && process.stderr.isTTY ? createTerminalPrompter : undefined,
+    // A dumb terminal cannot move the cursor, so the block could not be redrawn.
+    createProgress:
+      process.stderr.isTTY && process.env.TERM !== "dumb" ? createStderrProgress : undefined,
   };
 }
