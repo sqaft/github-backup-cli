@@ -6,6 +6,8 @@ export interface ExecOptions {
   timeoutMs?: number;
   /** Aborting kills the child process and rejects with code `ABORT_ERR`. */
   signal?: AbortSignal;
+  /** Called for each stderr line as it arrives; a carriage return also ends a line. */
+  onStderrLine?: (line: string) => void;
 }
 
 export interface ExecResult {
@@ -34,6 +36,11 @@ export function redactUrls(text: string): string {
   return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1");
 }
 
+/** Keeps what a terminal would show: text overwritten after a carriage return is dropped. */
+function dropOverwritten(text: string): string {
+  return text.replace(/[^\r\n]*\r(?!\n)/g, "");
+}
+
 function describeCommand(cmd: string, args: string[]): string {
   return redactUrls([cmd, ...args].join(" "));
 }
@@ -48,6 +55,7 @@ export const exec: Exec = (cmd, args, opts = {}) =>
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
+    let partialLine = "";
     let timedOut = false;
     const timer = opts.timeoutMs
       ? setTimeout(() => {
@@ -57,7 +65,13 @@ export const exec: Exec = (cmd, args, opts = {}) =>
       : undefined;
 
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr.push(chunk);
+      if (!opts.onStderrLine) return;
+      const lines = `${partialLine}${chunk.toString("utf8")}`.split(/[\r\n]/);
+      partialLine = lines.pop() ?? "";
+      for (const line of lines) if (line) opts.onStderrLine(line);
+    });
     child.on("error", (err: NodeJS.ErrnoException) => {
       clearTimeout(timer);
       reject(
@@ -72,7 +86,7 @@ export const exec: Exec = (cmd, args, opts = {}) =>
     child.on("close", (code) => {
       clearTimeout(timer);
       const out = Buffer.concat(stdout).toString("utf8");
-      const err = redactUrls(Buffer.concat(stderr).toString("utf8")).trim();
+      const err = dropOverwritten(redactUrls(Buffer.concat(stderr).toString("utf8"))).trim();
       if (timedOut) {
         reject(
           new ExecError(

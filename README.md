@@ -76,13 +76,13 @@ github-backup backup [options]
 When stderr is a terminal, `backup` draws a progress block below the log lines:
 
 ```text
-[████████████░░░░░░░░░░░░░░░░░░] 16/40 40%  ok 9 · unchanged 5 · failed 2
-  fetching             github/acme/api  12s
-  bundling             github/acme/web  1m 4s
-  writing to offsite   github/acme/web.wiki  3s
+[█████████████░░░░░░░░░░░░░░░░░] 16/40 44%  ok 9 · unchanged 5 · failed 2
+  fetching             [█████░░░░░░░] 45%  github/acme/api  12s
+  bundling             [██████████░░] 83%  github/acme/web  1m 4s
+  writing to offsite   [███░░░░░░░░░] 27%  github/acme/web.wiki  3s
 ```
 
-The first line counts finished repositories and wikis. Each line below it is one repository or wiki in flight, with its current step and how long it has been running. The block disappears before the summary is printed. It is not drawn with `--quiet`, when stderr is redirected (cron, launchd, files), or on a `TERM=dumb` terminal.
+The first line shows how many repositories and wikis have finished. Its bar and percentage also include the work done so far on the ones in flight, and every repository or wiki weighs the same, whatever its size. Each line below it is one repository or wiki in flight, with its current step, how far that step is and how long the repository or wiki has been running. Fetching, bundling and writing to S3 report a percentage; other steps, such as LFS transfers and writing to a local target, show only their name. The block disappears before the summary is printed. It is not drawn with `--quiet`, when stderr is redirected (cron, launchd, files), or on a `TERM=dumb` terminal.
 
 ### Exit codes
 

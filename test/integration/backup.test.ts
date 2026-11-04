@@ -70,6 +70,7 @@ function recordingProgress() {
     start: (total) => events.push(`start ${total}`),
     unitStart: (key) => events.push(`unitStart ${key}`),
     phase: (key, label) => events.push(`phase ${key} ${label}`),
+    percent: (key, percent) => events.push(`percent ${key} ${percent}`),
     unitDone: (key, status) => events.push(`unitDone ${key} ${status}`),
     log: (line) => events.push(`log ${line}`),
     stop: () => events.push("stop"),
@@ -90,7 +91,7 @@ describe("backup", () => {
 
     await backup("--concurrency", "1");
 
-    const reported = events.filter((event) => !event.startsWith("log "));
+    const reported = events.filter((event) => !/^(log|percent) /.test(event));
     expect(reported).toEqual([
       "start 3",
       "unitStart test/o/a",
@@ -116,6 +117,33 @@ describe("backup", () => {
     const firstStop = events.indexOf("stop");
     expect(lastStop).toBeGreaterThan(firstStop);
     expect(events.slice(firstStop + 1, lastStop).join("\n")).toContain("Backup finished");
+  });
+
+  it("reports git's transfer percentages and keeps them out of errors", async () => {
+    const a = new TestRemote(root, "a", home);
+    a.commit("a.txt", "1");
+    const broken = { url: `file://${path.join(root, "missing.git")}` };
+    const { events, createProgress } = recordingProgress();
+    const repos = [repoInfo("o/a", a), repoInfo("o/broken", broken)];
+    // git stays silent while unpacking a small fetch; a limit of 1 forces the reported path.
+    const unpackLimit = {
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "fetch.unpackLimit",
+      GIT_CONFIG_VALUE_0: "1",
+    };
+    const { backup } = setup(repos, {
+      createProgress,
+      createSource: () => fakeSource(repos, unpackLimit),
+    });
+
+    const { json } = await backup("--concurrency", "1", "--json");
+
+    const fetching = events.indexOf("phase test/o/a fetching");
+    const bundling = events.indexOf("phase test/o/a bundling");
+    const done = events.indexOf("unitDone test/o/a ok");
+    expect(events.slice(fetching, bundling)).toContain("percent test/o/a 100");
+    expect(events.slice(bundling, done)).toContain("percent test/o/a 100");
+    expect(json?.failures[0]?.error).not.toContain("%");
   });
 
   it("draws no progress with --quiet", async () => {

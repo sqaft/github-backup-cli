@@ -218,15 +218,21 @@ export function createS3Target(options: S3TargetOptions): Target {
       .map((p) => p.stamp)
       .sort();
 
-  async function upload(key: string, file: string): Promise<void> {
+  async function upload(
+    key: string,
+    file: string,
+    onBytes?: (loaded: number) => void,
+  ): Promise<void> {
     const body = createReadStream(file);
     try {
-      await new Upload({
+      const transfer = new Upload({
         client: client as S3Client,
         params: { Bucket: bucket, Key: key, Body: body },
         partSize: PART_SIZE,
         queueSize: 4,
-      }).done();
+      });
+      transfer.on("httpUploadProgress", ({ loaded }) => onBytes?.(loaded ?? 0));
+      await transfer.done();
     } finally {
       body.destroy();
     }
@@ -308,11 +314,20 @@ export function createS3Target(options: S3TargetOptions): Target {
       });
     },
 
-    async putSnapshot(repoKey, stamp, files: SnapshotFiles) {
+    async putSnapshot(repoKey, stamp, files: SnapshotFiles, onPercent) {
+      const { bundleBytes, lfsTarBytes = 0 } = files.manifest;
+      const total = bundleBytes + lfsTarBytes;
+      const reportFrom = (offset: number) => (loaded: number) => {
+        if (total > 0) onPercent?.(Math.floor(((offset + loaded) / total) * 100));
+      };
       await guard(`${repoKey}: cannot upload snapshot ${stamp}`, async () => {
-        await upload(objectKey(prefix, repoKey, `${stamp}.bundle`), files.bundle);
+        await upload(objectKey(prefix, repoKey, `${stamp}.bundle`), files.bundle, reportFrom(0));
         if (files.lfsTar)
-          await upload(objectKey(prefix, repoKey, `${stamp}.lfs.tar`), files.lfsTar);
+          await upload(
+            objectKey(prefix, repoKey, `${stamp}.lfs.tar`),
+            files.lfsTar,
+            reportFrom(bundleBytes),
+          );
         await client.send(
           new PutObjectCommand({
             Bucket: bucket,

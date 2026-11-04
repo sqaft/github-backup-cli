@@ -43,8 +43,16 @@ export interface Target {
   readonly keep: number;
   /** Manifest of the newest complete snapshot, or null. */
   latestManifest(repoKey: string): Promise<Manifest | null>;
-  /** Stores the files; the manifest is stored last. */
-  putSnapshot(repoKey: string, stamp: string, files: SnapshotFiles): Promise<void>;
+  /**
+   * Stores the files; the manifest is stored last. `onPercent`, when the storage can tell,
+   * receives the share of the snapshot's bytes stored so far.
+   */
+  putSnapshot(
+    repoKey: string,
+    stamp: string,
+    files: SnapshotFiles,
+    onPercent?: (percent: number) => void,
+  ): Promise<void>;
   /** Stamps of complete snapshots (those with a manifest), oldest first. */
   listSnapshots(repoKey: string): Promise<string[]>;
   /** Removes bundle, lfs.tar and manifest of one snapshot. */

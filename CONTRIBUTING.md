@@ -42,6 +42,7 @@ A target is a storage that receives snapshots (`local` and `s3` exist).
 
 1. Implement the `Target` interface from `src/targets/types.ts` in `src/targets/<type>.ts`. Keep the shared layout `<root>/<source>/<owner>/<repo>/<stamp>.{bundle,lfs.tar,json}` and reuse the file name parsing in `src/targets/names.ts`. The contract that the core relies on:
    - `putSnapshot` writes the bundle and LFS tar first and the manifest last; a snapshot without its manifest is incomplete. Files must not appear under their final name before they are complete.
+   - `putSnapshot` calls `onPercent` with the share of bytes stored so far when the storage can tell; without it the progress block shows only the step name.
    - `listSnapshots` returns only snapshots that have a manifest, oldest first.
    - `deleteSnapshot` removes the manifest first.
    - `cleanupIncomplete` removes leftovers that have no manifest.

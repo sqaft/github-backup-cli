@@ -12,6 +12,25 @@ describe("redactUrls", () => {
 });
 
 describe("exec", () => {
+  it("reports stderr lines as they arrive, split at carriage returns", async () => {
+    const lines: string[] = [];
+    await exec(
+      "node",
+      [
+        "-e",
+        "process.stderr.write('a 1%\\ra 2'); setTimeout(() => process.stderr.write('%\\nb\\n'), 20)",
+      ],
+      { onStderrLine: (line) => lines.push(line) },
+    );
+    expect(lines).toEqual(["a 1%", "a 2%", "b"]);
+  });
+
+  it("keeps only the last state of overwritten lines in errors", async () => {
+    const script = "process.stderr.write('a 1%\\ra 2%\\rdone\\nfatal: boom\\n'); process.exit(1)";
+    const err = (await exec("node", ["-e", script]).catch((e: unknown) => e)) as ExecError;
+    expect(err.stderr).toBe("done\nfatal: boom");
+  });
+
   it("captures stdout and merges env", async () => {
     const result = await exec("node", ["-e", "process.stdout.write(process.env.FOO ?? '')"], {
       env: { FOO: "bar" },

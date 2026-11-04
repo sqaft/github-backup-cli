@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config/load.js";
@@ -185,6 +185,9 @@ function fakeClient(initial: string[], pageSize = 1000) {
         return {};
       case "ListMultipartUploadsCommand":
         throw Object.assign(new Error("not supported"), { name: "NotImplemented" });
+      case "PutObjectCommand":
+        keys.add(input.Key);
+        return {};
       case "GetObjectCommand":
         return {
           Body: { transformToString: async () => JSON.stringify({ stamp: "from-fake" }) },
@@ -193,7 +196,12 @@ function fakeClient(initial: string[], pageSize = 1000) {
         throw new Error(`unexpected command ${name}`);
     }
   };
-  return { client: { send } as never, keys, calls };
+  const config = {
+    requestHandler: {},
+    endpoint: async () => ({ protocol: "https:", hostname: "fake", path: "/" }),
+    forcePathStyle: true,
+  };
+  return { client: { send, config } as never, keys, calls };
 }
 
 const stampKey = (stamp: string, ext: string) => `git/github/o/r/${stamp}.${ext}`;
@@ -284,6 +292,40 @@ describe("s3 target against a fake client", () => {
       "git/github/o/r/20260101T000000Z.json",
       "git/github/o/r/notes.txt",
     ]);
+  });
+
+  it("reports the share of the snapshot's bytes uploaded across its files", async () => {
+    const dir = makeTempDir("ghb-s3-");
+    const bundle = path.join(dir, "snapshot.bundle");
+    const lfsTar = path.join(dir, "snapshot.lfs.tar");
+    writeFileSync(bundle, "x".repeat(30));
+    writeFileSync(lfsTar, "x".repeat(10));
+    const manifest = {
+      version: 1 as const,
+      source: "github",
+      fullName: "o/r",
+      stamp: "20260101T000000Z",
+      refsHash: "h",
+      refs: [],
+      bundleBytes: 30,
+      lfsTarBytes: 10,
+      tool: { name: "t", version: "0" },
+    };
+    const percents: number[] = [];
+    const { client } = fakeClient([]);
+    const target = createS3Target({ ...options, client });
+
+    await target.putSnapshot(
+      "github/o/r",
+      manifest.stamp,
+      { bundle, lfsTar, manifest },
+      (percent) => percents.push(percent),
+    );
+
+    rmSync(dir, { recursive: true, force: true });
+    expect(percents.at(-1)).toBe(100);
+    expect(percents).toEqual([...percents].sort((a, b) => a - b));
+    expect(percents).toContain(75);
   });
 
   it("rejects repository keys that escape the prefix", async () => {

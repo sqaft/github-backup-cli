@@ -13,6 +13,8 @@ const unit = (key: string, label = "fetching", startedAt = 0): ActiveUnit => ({
   key,
   label,
   startedAt,
+  from: 0,
+  to: 0,
 });
 
 const state = (extra: Partial<ProgressState> = {}): ProgressState => ({
@@ -40,6 +42,18 @@ describe("renderProgress", () => {
     expect(overall).toBe(`[${"█".repeat(15)}${"░".repeat(15)}] 2/4 50%  ok 1 · failed 1`);
   });
 
+  it("counts the finished share of units in flight in the overall bar", () => {
+    const counts = { ok: 1, unchanged: 0, skipped: 0, failed: 0 };
+    const active = [{ ...unit("a"), from: 0, to: 0.4, percent: 50 }];
+    const [overall] = renderProgress(state({ total: 2, counts, active }), SIZE, 0);
+    expect(overall).toContain("1/2 60%");
+  });
+
+  it("uses the start of a phase that reports no percentage", () => {
+    const active = [{ ...unit("a"), from: 0.5, to: 0.8 }];
+    expect(renderProgress(state({ total: 1, active }), SIZE, 0)[0]).toContain("0/1 50%");
+  });
+
   it("does not divide by zero without units", () => {
     expect(renderProgress(state({ total: 0 }), SIZE, 0)[0]).toContain("0/0 0%");
   });
@@ -47,8 +61,21 @@ describe("renderProgress", () => {
   it("lists units in flight with their phase and running time", () => {
     const active = [unit("github/acme/app", "bundling", 1000)];
     expect(renderProgress(state({ active }), SIZE, 3000)[1]).toBe(
-      `  ${"bundling".padEnd(20)} github/acme/app  2s`,
+      `  ${"bundling".padEnd(20)} ${" ".repeat(19)} github/acme/app  2s`,
     );
+  });
+
+  it("draws a bar for a unit whose phase reports a percentage", () => {
+    const active = [{ ...unit("github/acme/app"), percent: 50 }];
+    expect(renderProgress(state({ active }), SIZE, 0)[1]).toBe(
+      `  ${"fetching".padEnd(20)} [${"█".repeat(6)}${"░".repeat(6)}] 50%  github/acme/app  0s`,
+    );
+  });
+
+  it("keeps the key in the same column at every percentage", () => {
+    const column = (percent: number) =>
+      renderProgress(state({ active: [{ ...unit("key"), percent }] }), SIZE, 0)[1]?.indexOf("key");
+    expect(column(5)).toBe(column(100));
   });
 
   it("keeps every line shorter than the terminal is wide", () => {
@@ -136,7 +163,7 @@ describe("createProgressDisplay", () => {
     const progress = display();
     progress.start(2);
     progress.unitStart("github/acme/app");
-    progress.phase("github/acme/app", "bundling");
+    progress.phase("github/acme/app", "bundling", 0, 1);
     vi.advanceTimersByTime(100);
     expect(writes.at(-1)).toContain("bundling");
 
@@ -145,6 +172,23 @@ describe("createProgressDisplay", () => {
 
     expect(writes.at(-1)).toContain("1/2 50%  ok 1");
     expect(writes.at(-1)).not.toContain("github/acme/app");
+    progress.stop();
+  });
+
+  it("moves the bars with the percentage and clears it when the phase changes", () => {
+    const progress = display();
+    progress.start(1);
+    progress.unitStart("github/acme/app");
+    progress.phase("github/acme/app", "fetching", 0, 0.5);
+    progress.percent("github/acme/app", 40);
+    vi.advanceTimersByTime(100);
+    expect(writes.at(-1)).toContain("0/1 20%");
+    expect(writes.at(-1)).toContain("] 40%");
+
+    progress.phase("github/acme/app", "checking targets", 0.5, 0.5);
+    vi.advanceTimersByTime(100);
+    expect(writes.at(-1)).toContain("0/1 50%");
+    expect(writes.at(-1)).not.toContain("] 40%");
     progress.stop();
   });
 

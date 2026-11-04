@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
 import type { Manifest, RefEntry } from "../targets/types.js";
 import type { ToolInfo } from "../util/tool.js";
-import type { Git } from "./git.js";
+import type { Git, OnPercent } from "./git.js";
 
 /** Branches and tags of a mirror, sorted by ref name. */
 export async function listRefs(git: Git, mirrorDir: string): Promise<RefEntry[]> {
@@ -25,8 +25,14 @@ export function hashRefs(refs: RefEntry[]): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-export async function createBundle(git: Git, mirrorDir: string, file: string): Promise<number> {
-  await git(["bundle", "create", file, "--all"], { cwd: mirrorDir });
+export async function createBundle(
+  git: Git,
+  mirrorDir: string,
+  file: string,
+  onPercent?: OnPercent,
+): Promise<number> {
+  const progress = onPercent ? ["--progress"] : [];
+  await git(["bundle", "create", ...progress, file, "--all"], { cwd: mirrorDir, onPercent });
   return (await stat(file)).size;
 }
 

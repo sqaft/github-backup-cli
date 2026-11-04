@@ -72,6 +72,9 @@ export interface BackupContext {
 
 export const RETRY_DELAYS_MS = [1000, 5000] as const;
 
+/** Share of a unit finished after each step; writing to the targets takes the rest. */
+const PHASE_END = { fetch: 0.4, bundle: 0.6, lfs: 0.8 } as const;
+
 interface Unit {
   key: string;
   kind: UnitKind;
@@ -121,6 +124,9 @@ async function processUnit(
   ctx: BackupContext,
 ): Promise<UnitResult> {
   const { log, progress } = ctx;
+  const phase = (label: string, from: number, to = from) =>
+    progress?.phase(unit.key, label, from, to);
+  const onPercent = progress ? (percent: number) => progress.percent(unit.key, percent) : undefined;
   if (unit.skip !== undefined) {
     log.info(`skipped: ${unit.skip}`, unit.key);
     return finish(unit, "skipped", [], { reason: unit.skip });
@@ -148,16 +154,16 @@ async function processUnit(
   let tmpDir: string | undefined;
 
   try {
-    progress?.phase(unit.key, "fetching");
+    phase("fetching", 0, PHASE_END.fetch);
     const mirror = await retry(() =>
-      syncMirror(git, { mirrorDir: unit.mirrorDir, url, kind: unit.kind }),
+      syncMirror(git, { mirrorDir: unit.mirrorDir, url, kind: unit.kind, onPercent }),
     );
     if (mirror.status === "skipped") {
       log.info(`skipped: ${mirror.reason}`, unit.key);
       return finish(unit, "skipped", [], { reason: mirror.reason });
     }
 
-    progress?.phase(unit.key, "checking targets");
+    phase("checking targets", PHASE_END.fetch);
     const refs = await listRefs(git, unit.mirrorDir);
     if (refs.length === 0) {
       log.info("skipped: empty", unit.key);
@@ -181,18 +187,18 @@ async function processUnit(
     }
 
     if (pending.length > 0) {
-      progress?.phase(unit.key, "bundling");
+      phase("bundling", PHASE_END.fetch, PHASE_END.bundle);
       tmpDir = await mkdtemp(path.join(input.cacheDir, "tmp", "unit-"));
       const bundle = path.join(tmpDir, "snapshot.bundle");
-      const bundleBytes = await retry(() => createBundle(git, unit.mirrorDir, bundle));
+      const bundleBytes = await retry(() => createBundle(git, unit.mirrorDir, bundle, onPercent));
       let lfsTar: string | undefined;
       let lfsTarBytes: number | undefined;
       // LFS objects belong to refs, so they are only fetched when a new snapshot is due.
       if (input.lfs && unit.kind === "repo") {
-        progress?.phase(unit.key, "fetching LFS");
+        phase("fetching LFS", PHASE_END.bundle, PHASE_END.lfs);
         await retry(() => fetchLfs(git, unit.mirrorDir));
         if (await hasLfsObjects(unit.mirrorDir)) {
-          progress?.phase(unit.key, "archiving LFS");
+          phase("archiving LFS", PHASE_END.lfs);
           lfsTar = path.join(tmpDir, "snapshot.lfs.tar");
           const file = lfsTar;
           lfsTarBytes = await retry(() => createLfsTar(unit.mirrorDir, file));
@@ -208,17 +214,24 @@ async function processUnit(
         ...(lfsTarBytes === undefined ? {} : { lfsTarBytes }),
         tool: ctx.tool,
       });
-      for (const target of pending) {
+      const writeShare = (1 - PHASE_END.lfs) / pending.length;
+      for (const [index, target] of pending.entries()) {
+        const writeEnd = PHASE_END.lfs + writeShare * (index + 1);
         try {
-          progress?.phase(unit.key, `writing to ${target.name}`);
+          phase(`writing to ${target.name}`, writeEnd - writeShare, writeEnd);
           await retry(() =>
-            target.putSnapshot(unit.key, stamp, {
-              bundle,
-              ...(lfsTar ? { lfsTar } : {}),
-              manifest,
-            }),
+            target.putSnapshot(
+              unit.key,
+              stamp,
+              {
+                bundle,
+                ...(lfsTar ? { lfsTar } : {}),
+                manifest,
+              },
+              onPercent,
+            ),
           );
-          progress?.phase(unit.key, `pruning ${target.name}`);
+          phase(`pruning ${target.name}`, writeEnd);
           await retry(() => applyRetention(target, unit.key));
           results.push({ target: target.name, status: "created", stamp });
           log.info(`snapshot ${stamp} written to ${target.name}`, unit.key);

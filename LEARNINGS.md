@@ -11,3 +11,6 @@
 
 ## 2026-11-04 — LFS'li bundle düz `git clone` ile açılmaz
 `git lfs install` yapılmış makinede `filter.lfs` global ve `required=true` olduğu için bundle'dan klon checkout sırasında LFS nesnesini indirmeye çalışır; bundle'da LFS sunucusu olmadığından "smudge filter lfs failed" ile düşer. Klon `GIT_LFS_SKIP_SMUDGE=1` ile alınır, tar `.git` altına açılır, sonra `git lfs checkout` çalıştırılır. İzole `HOME` kullanan test global filtreyi görmediği için hatayı kaçırıyordu; test artık `git lfs install --skip-repo` ile gerçek koşulu kurar.
+
+## 2026-11-04 — Küçük `git fetch` `--progress` ile bile yüzde yazmaz
+`fetch.unpackLimit` (varsayılan 100) altındaki fetch'lerde git nesneleri `unpack-objects` ile açar ve iş hızlı bittiği için yüzde satırı çıkmaz; yalnızca büyük fetch'ler `Receiving objects: N%` yazar. Yüzdeye bağlı test küçük depoda `fetch.unpackLimit=1` ister. Bu satırlar çevrilebildiği için `--progress` çağrıları `LC_ALL=C` ile çalışır.

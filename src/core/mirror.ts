@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { ExecError } from "../util/exec.js";
-import type { Git } from "./git.js";
+import type { Git, OnPercent } from "./git.js";
 
 export type MirrorResult = { status: "ok" } | { status: "skipped"; reason: string };
 
@@ -11,6 +11,8 @@ export interface MirrorInput {
   url: string;
   /** A missing wiki repository is expected (wiki enabled, no pages yet), not an error. */
   kind: "repo" | "wiki";
+  /** Receives the fetch percentage. */
+  onPercent?: OnPercent;
 }
 
 const FETCH_REFSPECS = ["+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*"];
@@ -48,7 +50,11 @@ export async function syncMirror(git: Git, input: MirrorInput): Promise<MirrorRe
   const inRepo = { cwd: input.mirrorDir };
   try {
     await git(["config", "remote.origin.url", input.url], inRepo);
-    await git(["fetch", "--no-tags", "--no-prune", "origin"], inRepo);
+    const progress = input.onPercent ? ["--progress"] : [];
+    await git(["fetch", "--no-tags", "--no-prune", ...progress, "origin"], {
+      ...inRepo,
+      onPercent: input.onPercent,
+    });
   } catch (err) {
     if (created) await rm(input.mirrorDir, { recursive: true, force: true });
     if (input.kind === "wiki" && err instanceof ExecError && NOT_FOUND.test(err.stderr)) {
