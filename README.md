@@ -44,7 +44,7 @@ github-backup snapshots acme/app     # what is stored for one repository
 
 The first run mirrors every repository into the cache directory (`~/.cache/github-backup-cli`) and writes one snapshot per repository. Later runs fetch only what changed.
 
-To try it without a config file, pass a directory: `github-backup backup --to ~/backups`. Running `backup` again skips unchanged repositories.
+To try it without a config file, pass a directory: `github-backup backup --to ~/backups`. Running `backup` again skips unchanged repositories. If you already have a config file, `--to` writes to its targets as well; add `--target local` to use only that directory.
 
 ## Commands
 
@@ -74,7 +74,7 @@ github-backup snapshots <owner/repo>   list a repository's snapshots on each tar
 | `--no-wiki` | `backup` | Skip wikis. |
 | `--no-lfs` | `backup`, `doctor` | Skip Git LFS objects (also skips the `git-lfs` check). |
 | `-t`, `--target <name>` | `backup`, `doctor`, `snapshots`, `setup` | Use only the configured target with this name. Repeatable. With `setup`, offers this name for the new target. |
-| `--to <path>` | `backup`, `doctor`, `snapshots` | Add a temporary local target named `local` at this directory. With `--target` or `GHBACKUP_TARGETS` it is used only if they name `local`. |
+| `--to <path>` | `backup`, `doctor`, `snapshots` | Add a temporary local target named `local` at this directory, next to the configured targets. Add `--target local` to use only this directory. With `--target` or `GHBACKUP_TARGETS` it is used only if they name `local`. |
 
 `--no-archived`, `--no-forks`, `--no-wiki` and `--no-lfs` override the environment and the config file only when you type them.
 
