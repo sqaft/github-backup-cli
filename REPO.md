@@ -1,4 +1,4 @@
-**Durum:** Yayında
+**Durum:** Geliştirme aşamasında
 **Tür:** Bağımsız kütüphane / ürün
 
 # github-backup-cli
